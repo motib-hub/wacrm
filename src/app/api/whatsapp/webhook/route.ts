@@ -13,6 +13,11 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import {
+  handleCoexistenceChange,
+  isCoexistenceWebhookField,
+} from '@/lib/whatsapp/coexistence'
+import { toMessageContentType } from '@/lib/whatsapp/content-type'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls, so
@@ -242,47 +247,29 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         }
       }
 
+      // Coexistence fields (smb_message_echoes / smb_app_state_sync /
+      // history) carry no `messages` or `contacts` array, so they must
+      // be routed BEFORE the guard below drops them. They still need
+      // the config for tenancy, hence the shared lookup.
+      if (isCoexistenceWebhookField(change.field)) {
+        const coexConfig = await resolveConfigByPhoneNumberId(
+          value.metadata?.phone_number_id
+        )
+        if (!coexConfig) continue
+        await handleCoexistenceChange(
+          { field: change.field, value: value as unknown },
+          buildCoexistenceDeps(coexConfig, value.metadata?.display_phone_number)
+        )
+        continue
+      }
+
       // Handle incoming messages
       if (!value.messages || !value.contacts) continue
 
-      const phoneNumberId = value.metadata.phone_number_id
-
-      // Find user's config by phone_number_id. `.single()` returns
-      // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
-      // operators see the real cause in logs. ≥2 rows shouldn't happen
-      // post-migration 013 (UNIQUE constraint), but a row created
-      // before the constraint, or a race, would still surface here.
-      const { data: configRows, error: configError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('*')
-        .eq('phone_number_id', phoneNumberId)
-
-      if (configError) {
-        console.error(
-          'Error fetching whatsapp_config for phone_number_id:',
-          phoneNumberId,
-          configError
-        )
-        continue
-      }
-
-      if (!configRows || configRows.length === 0) {
-        console.error('No config found for phone_number_id:', phoneNumberId)
-        continue
-      }
-
-      if (configRows.length > 1) {
-        console.error(
-          `Multiple configs (${configRows.length}) found for phone_number_id:`,
-          phoneNumberId,
-          '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
-          'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
-        )
-        continue
-      }
-
-      const config = configRows[0]
+      const config = await resolveConfigByPhoneNumberId(
+        value.metadata.phone_number_id
+      )
+      if (!config) continue
 
       const decryptedAccessToken = decrypt(config.access_token)
 
@@ -304,6 +291,130 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         )
       }
     }
+  }
+}
+
+/**
+ * Resolve the whatsapp_config row that owns a phone_number_id.
+ *
+ * `.single()` returns PGRST116 for both 0 rows AND ≥2 rows —
+ * distinguish them so operators see the real cause in logs. ≥2 rows
+ * shouldn't happen post-migration 013 (UNIQUE constraint), but a row
+ * created before the constraint, or a race, would still surface here.
+ *
+ * Returns null (already logged) when the event can't be attributed to
+ * exactly one account; every caller drops the event in that case.
+ */
+async function resolveConfigByPhoneNumberId(
+  phoneNumberId: string | undefined
+  // The row is read with select('*') off the untyped admin client, and
+  // callers reach for columns across three migrations. Typing it as a
+  // hand-maintained interface here would drift from the schema.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): Promise<any | null> {
+  if (!phoneNumberId) {
+    console.error('[webhook] event carried no phone_number_id — dropped')
+    return null
+  }
+
+  const { data: configRows, error: configError } = await supabaseAdmin()
+    .from('whatsapp_config')
+    .select('*')
+    .eq('phone_number_id', phoneNumberId)
+
+  if (configError) {
+    console.error(
+      'Error fetching whatsapp_config for phone_number_id:',
+      phoneNumberId,
+      configError
+    )
+    return null
+  }
+
+  if (!configRows || configRows.length === 0) {
+    console.error('No config found for phone_number_id:', phoneNumberId)
+    return null
+  }
+
+  if (configRows.length > 1) {
+    console.error(
+      `Multiple configs (${configRows.length}) found for phone_number_id:`,
+      phoneNumberId,
+      '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
+      'Account owners:',
+      configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
+    )
+    return null
+  }
+
+  return configRows[0]
+}
+
+/**
+ * Adapt the route's contact/conversation machinery to the shape the
+ * coexistence handlers expect.
+ *
+ * The find-or-create helpers below own the dedupe rules, the
+ * account-tenancy / audit-user split and the one-conversation-per-
+ * (account, contact) convention. Injecting them keeps the coexistence
+ * module free of the lazily-initialised admin client — and keeps a
+ * message imported from a phone indistinguishable from one that
+ * arrived live.
+ */
+function buildCoexistenceDeps(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  config: any,
+  displayPhoneNumber: string | undefined
+) {
+  const accountId = config.account_id
+  const ownerUserId = config.user_id
+
+  return {
+    supabase: supabaseAdmin(),
+    accountId,
+    // Falls back to the stored display number so a payload with
+    // incomplete metadata still resolves message direction correctly.
+    businessPhone: displayPhoneNumber ?? config.display_phone_number ?? '',
+
+    async resolveThread(phone: string, name?: string | null) {
+      const outcome = await findOrCreateContact(
+        accountId,
+        ownerUserId,
+        phone,
+        name || phone
+      )
+      if (!outcome) return null
+      const convResult = await findOrCreateConversation(
+        accountId,
+        ownerUserId,
+        outcome.contact.id
+      )
+      if (!convResult) return null
+      return {
+        conversationId: convResult.conversation.id,
+        contactId: outcome.contact.id,
+      }
+    },
+
+    async resolveContact(phone: string, name?: string | null) {
+      const outcome = await findOrCreateContact(
+        accountId,
+        ownerUserId,
+        phone,
+        name || phone
+      )
+      return outcome?.contact.id ?? null
+    },
+
+    async markHistorySynced() {
+      const { error } = await supabaseAdmin()
+        .from('whatsapp_config')
+        .update({ history_synced_at: new Date().toISOString() })
+        .eq('id', config.id)
+      if (error) {
+        console.error('[webhook] history_synced_at update failed:', error.message)
+      }
+    },
   }
 }
 
@@ -640,20 +751,10 @@ async function processMessage(
   // parseMessageContent. Silence the unused-var warning:
   void mediaType
 
-  // The messages.content_type CHECK constraint (widened in migration 010
-  // to add 'interactive' for button/list taps) allows:
-  //   text, image, document, audio, video, location, template, interactive
-  // Map incoming WhatsApp types that aren't in that list to the closest
-  // allowed value so the INSERT doesn't fail with a constraint error.
-  const ALLOWED_CONTENT_TYPES = new Set([
-    'text', 'image', 'document', 'audio', 'video',
-    'location', 'template', 'interactive',
-  ])
-  const contentType = ALLOWED_CONTENT_TYPES.has(message.type)
-    ? message.type
-    : message.type === 'sticker'
-      ? 'image'   // stickers are images
-      : 'text'    // reaction, unknown → text fallback
+  // Map incoming WhatsApp types onto the messages.content_type CHECK
+  // constraint. Shared with the coexistence importers so the same
+  // message looks the same however it reached us.
+  const contentType = toMessageContentType(message.type)
 
   // Determine whether this is the contact's very first inbound message
   // BEFORE we insert, so the count is accurate. Covers the case where

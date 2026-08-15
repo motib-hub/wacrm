@@ -211,6 +211,54 @@ export async function getSubscribedApps(
   return data.data ?? []
 }
 
+export interface RequestSmbAppDataArgs {
+  phoneNumberId: string
+  accessToken: string
+  /**
+   * 'smb_app_state_sync' pulls the phone's address book,
+   * 'history' pulls up to 180 days of past conversations.
+   */
+  syncType: 'smb_app_state_sync' | 'history'
+}
+
+/**
+ * Ask Meta to stream a coexistence number's existing data back to us.
+ *
+ * This is a request, not a fetch: the call returns immediately and the
+ * data arrives asynchronously over the `smb_app_state_sync` / `history`
+ * webhook fields, in chunks, over the following minutes. A 200 here
+ * means "Meta accepted the request", nothing about what was imported.
+ *
+ * Timing matters — Meta only honours these requests for 24 hours after
+ * the business completes coexistence onboarding. After that the
+ * business has to disconnect in the app and pair again, so the UI
+ * offers this as an explicit action rather than burying it in a
+ * background job that might miss the window.
+ *
+ * Only valid on numbers onboarded via coexistence; a regular Cloud API
+ * number returns an error from Meta.
+ */
+export async function requestSmbAppData(
+  args: RequestSmbAppDataArgs
+): Promise<void> {
+  const { phoneNumberId, accessToken, syncType } = args
+  const url = `${META_API_BASE}/${phoneNumberId}/smb_app_data`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      sync_type: syncType,
+    }),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+}
+
 // ============================================================
 // Sending
 // ============================================================

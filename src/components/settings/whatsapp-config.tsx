@@ -13,6 +13,8 @@ import {
   Zap,
   AlertTriangle,
   RotateCcw,
+  Smartphone,
+  DownloadCloud,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -21,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Switch } from '@/components/ui/switch';
 import { SettingsPanelHead } from './settings-panel-head';
 import {
   Accordion,
@@ -67,6 +70,11 @@ export function WhatsAppConfig() {
   const [verifyToken, setVerifyToken] = useState('');
   const [pin, setPin] = useState('');
   const [tokenEdited, setTokenEdited] = useState(false);
+  // Coexistence = the Business app on the owner's phone and the Cloud
+  // API share one number. Drives the /register skip server-side and
+  // unlocks the "import from the phone" action below.
+  const [coexistence, setCoexistence] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   // True once /register has succeeded on Meta's side (timestamp set
   // in the row). When false, the saved config is metadata-only and
@@ -119,6 +127,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setCoexistence(Boolean(data.coexistence));
       } else {
         setConfig(null);
         setPhoneNumberId('');
@@ -127,6 +136,7 @@ export function WhatsAppConfig() {
         setVerifyToken('');
         setPin('');
         setTokenEdited(false);
+        setCoexistence(false);
       }
       // Clear any stale probe result when reloading the row.
       setRegistrationProbe(null);
@@ -204,7 +214,10 @@ export function WhatsAppConfig() {
         // Optional — only sent when the user filled it in. The server
         // requires it on first save or when changing numbers; for a
         // simple token rotation, leaving it blank skips re-register.
-        pin: pin.trim() || null,
+        // Ignored entirely on coexistence numbers, which must never be
+        // sent through /register.
+        pin: coexistence ? null : pin.trim() || null,
+        coexistence,
       };
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
@@ -272,6 +285,52 @@ export function WhatsAppConfig() {
       toast.error('Failed to save configuration');
     } finally {
       setSaving(false);
+    }
+  }
+
+  /**
+   * Ask Meta to stream over the phone's contacts and past
+   * conversations. Coexistence only, and only inside the 24-hour
+   * window Meta allows after pairing — the button says so, because
+   * once that window closes the only fix is to unpair and pair again.
+   */
+  async function handleSyncFromPhone() {
+    try {
+      setSyncing(true);
+      const res = await fetch('/api/whatsapp/config/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contacts: true, history: true }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to request the import');
+        return;
+      }
+
+      if (data.success) {
+        toast.success(data.message, { duration: 10000 });
+      } else {
+        // Partial failure — name the half that failed so the user can
+        // retry just that one rather than re-running both.
+        const failed = Object.entries(
+          data.results as Record<string, { ok: boolean; error?: string }>,
+        )
+          .filter(([, r]) => !r.ok)
+          .map(([k, r]) => `${k}: ${r.error}`)
+          .join(' · ');
+        toast.error(`Meta rejected part of the import — ${failed}`, {
+          duration: 12000,
+        });
+      }
+
+      if (accountId) await fetchConfig(accountId);
+    } catch (err) {
+      console.error('Sync error:', err);
+      toast.error('Failed to request the import');
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -633,6 +692,40 @@ export function WhatsAppConfig() {
               </p>
             </div>
 
+            {/* Connection mode — coexistence vs a dedicated API number */}
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <Label className="flex items-center gap-2 text-foreground">
+                    <Smartphone className="size-4" />
+                    Coexistence — keep WhatsApp Business on the phone
+                  </Label>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Turn this on when the number was connected by
+                    scanning a QR from the WhatsApp Business app, so the
+                    owner keeps chatting from their phone while this CRM
+                    reads and writes on the same number. Leave it off for
+                    a dedicated API number (including Meta test numbers).
+                  </p>
+                </div>
+                <Switch
+                  checked={coexistence}
+                  onCheckedChange={setCoexistence}
+                  aria-label="Coexistence mode"
+                />
+              </div>
+              {coexistence && (
+                <p className="text-xs text-muted-foreground leading-relaxed border-t border-border pt-3">
+                  In this mode replies typed on the phone appear here as
+                  agent messages, and the two-step PIN below is not used
+                  — Meta registers the number during pairing, and calling
+                  register again would disconnect the app on the phone.
+                  Group chats stay on the phone only, and throughput is
+                  capped at 20 messages/second.
+                </p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label className="text-muted-foreground">
                 Two-step verification PIN
@@ -642,12 +735,17 @@ export function WhatsAppConfig() {
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="6-digit PIN from Meta WhatsApp Manager"
-                value={pin}
+                disabled={coexistence}
+                placeholder={
+                  coexistence
+                    ? 'Not used in coexistence mode'
+                    : '6-digit PIN from Meta WhatsApp Manager'
+                }
+                value={coexistence ? '' : pin}
                 onChange={(e) =>
                   setPin(e.target.value.replace(/\D/g, '').slice(0, 6))
                 }
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground tracking-widest"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground tracking-widest disabled:opacity-50"
               />
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Needed only to wire <strong className="text-muted-foreground">inbound</strong> messages
@@ -668,6 +766,97 @@ export function WhatsAppConfig() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Import from the phone — coexistence only */}
+        {config?.coexistence && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-foreground">
+                Import from the WhatsApp Business app
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">
+                Pull the phone&apos;s address book and up to 180 days of
+                past conversations into this inbox.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="size-4" />
+                <AlertTitle>Meta allows this for 24 hours after pairing</AlertTitle>
+                <AlertDescription className="leading-relaxed">
+                  After that window the only way to import is to
+                  disconnect in the app (Settings → Account → Business
+                  Platform) and pair again. Attachments are not included
+                  — imported media messages show their caption or a type
+                  marker.
+                </AlertDescription>
+              </Alert>
+
+              <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                <div>
+                  Contacts requested:{' '}
+                  <strong className="text-foreground">
+                    {config.contacts_sync_requested_at
+                      ? new Date(config.contacts_sync_requested_at).toLocaleString()
+                      : 'never'}
+                  </strong>
+                </div>
+                <div>
+                  History requested:{' '}
+                  <strong className="text-foreground">
+                    {config.history_sync_requested_at
+                      ? new Date(config.history_sync_requested_at).toLocaleString()
+                      : 'never'}
+                  </strong>
+                </div>
+                <div>
+                  History complete:{' '}
+                  <strong className="text-foreground">
+                    {config.history_synced_at
+                      ? new Date(config.history_synced_at).toLocaleString()
+                      : config.history_sync_requested_at
+                        ? 'importing…'
+                        : '—'}
+                  </strong>
+                </div>
+              </div>
+
+              {config.last_sync_error && (
+                <Alert variant="destructive">
+                  <XCircle className="size-4" />
+                  <AlertTitle>Meta rejected the last request</AlertTitle>
+                  <AlertDescription className="font-mono text-xs">
+                    {config.last_sync_error}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <Button
+                variant="outline"
+                onClick={handleSyncFromPhone}
+                disabled={syncing}
+                className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                {syncing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Requesting...
+                  </>
+                ) : (
+                  <>
+                    <DownloadCloud className="size-4" />
+                    Import contacts &amp; history
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Meta acknowledges instantly and then streams the data to
+                the webhook — conversations appear over the next few
+                minutes, not immediately.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Webhook URL */}
         <Card>

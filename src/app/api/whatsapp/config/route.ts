@@ -186,6 +186,9 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     const { phone_number_id, waba_id, access_token, verify_token, pin } = body
+    // Coexistence numbers are already registered by Meta as part of
+    // the QR pairing; see the /register skip below.
+    const coexistence = body.coexistence === true
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
@@ -296,7 +299,16 @@ export async function POST(request: Request) {
     // is not a failure, just an incomplete-but-valid save.
     let registrationSkipped = false
 
-    const needsRegistration = !sameNumber || (typeof pin === 'string' && pin.length > 0)
+    // Coexistence numbers must never be sent through /register. Meta
+    // registers the number itself during the QR pairing, and calling
+    // /register afterwards tears down the app-side session — the
+    // customer's WhatsApp Business app stops working, which is the one
+    // thing coexistence exists to prevent. Not a "skip because we
+    // couldn't", so it doesn't set registrationSkipped: the number IS
+    // live, and the UI must not show the "Not registered" banner.
+    const needsRegistration =
+      !coexistence &&
+      (!sameNumber || (typeof pin === 'string' && pin.length > 0))
     if (needsRegistration) {
       if (!pin) {
         // No PIN provided. Meta TEST numbers (Developer Console) are
@@ -327,6 +339,14 @@ export async function POST(request: Request) {
           // not actually live yet.
         }
       }
+    }
+
+    // A coexistence number is routable the moment the owner scans the
+    // QR — there is no /register call to timestamp, but it is every
+    // bit as live as one that went through it. Record that, so the
+    // "Not registered" remediation banner stays off.
+    if (coexistence && !registeredAt) {
+      registeredAt = new Date().toISOString()
     }
 
     // Step 2: subscribe the WABA to this app. Idempotent on Meta's
@@ -363,6 +383,7 @@ export async function POST(request: Request) {
       registered_at: registrationError ? null : registeredAt,
       subscribed_apps_at: subscribedAppsAt ?? null,
       last_registration_error: registrationError,
+      coexistence,
       updated_at: new Date().toISOString(),
     }
 
