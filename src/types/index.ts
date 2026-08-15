@@ -249,6 +249,22 @@ export interface WhatsAppConfig {
   subscribed_apps_at?: string;
   /** Last error from /register; cleared on success. */
   last_registration_error?: string;
+  /**
+   * True when this number runs the WhatsApp Business app and the Cloud
+   * API at the same time (the owner paired by scanning a QR from their
+   * phone). Changes behaviour in two places: /register is never called
+   * on these numbers, and the smb_message_echoes / smb_app_state_sync /
+   * history webhook fields become relevant.
+   */
+  coexistence?: boolean;
+  /** When we last asked Meta for the phone's address book. */
+  contacts_sync_requested_at?: string;
+  /** When we last asked Meta for past conversations. */
+  history_sync_requested_at?: string;
+  /** Set when Meta reported the history stream reached 100%. */
+  history_synced_at?: string;
+  /** Last error from either SMB App Data request; cleared on success. */
+  last_sync_error?: string;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
