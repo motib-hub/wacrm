@@ -105,6 +105,9 @@ export interface Contact {
   tags?: Tag[];
 }
 
+/** A contact including its Click-to-WhatsApp first-touch attribution. */
+export type ContactWithAttribution = Contact & ContactAttributionFields;
+
 export interface Tag {
   id: string;
   user_id: string;
@@ -228,6 +231,30 @@ export interface MessageReaction {
   actor_id?: string;
   emoji: string;
   created_at: string;
+}
+
+/**
+ * First-touch Click-to-WhatsApp attribution on a contact (migration
+ * 032). Present only for leads that arrived from an ad or an
+ * ad-derived link — and only when attribution is enabled on the
+ * WhatsApp Business Account, so absence is ambiguous.
+ */
+export interface ContactAttributionFields {
+  /** 'ad' | 'post' — Meta may add more values. */
+  attribution_source_type?: string | null;
+  /** Ad id or post id. The join key for per-ad reporting. */
+  attribution_source_id?: string | null;
+  /** The link that opened the chat; carries UTMs when it had them. */
+  attribution_source_url?: string | null;
+  attribution_headline?: string | null;
+  attribution_body?: string | null;
+  /** Meta's click id, required by the Conversions API. */
+  attribution_ctwa_clid?: string | null;
+  /** utm_* pairs parsed out of attribution_source_url. */
+  attribution_utm?: Record<string, string> | null;
+  /** When first touch was captured; also the "already attributed" flag. */
+  attribution_at?: string | null;
+  attribution_raw?: Record<string, unknown> | null;
 }
 
 export interface WhatsAppConfig {

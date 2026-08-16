@@ -18,6 +18,11 @@ import {
   isCoexistenceWebhookField,
 } from '@/lib/whatsapp/coexistence'
 import { toMessageContentType } from '@/lib/whatsapp/content-type'
+import {
+  buildContactAttribution,
+  hasUsableReferral,
+  type WhatsAppReferral,
+} from '@/lib/whatsapp/referral'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls, so
@@ -64,6 +69,13 @@ interface WhatsAppMessage {
   }
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string }
+  /**
+   * Present only on the FIRST message of a conversation opened from a
+   * Click-to-WhatsApp ad. Names the ad, the creative shown, and the
+   * click id. Never resent, so it has to be captured here or the
+   * lead's origin is lost.
+   */
+  referral?: WhatsAppReferral
 }
 
 interface WhatsAppWebhookEntry {
@@ -381,7 +393,15 @@ function buildCoexistenceDeps(
         accountId,
         ownerUserId,
         phone,
-        name || phone
+        // Pass through null rather than falling back to the phone
+        // number. findOrCreateContact renames an existing contact
+        // whenever the name it receives differs, so a phone-number
+        // fallback would overwrite the real WhatsApp profile name with
+        // digits on every echo. Echoes carry no name — the customer's
+        // name is not in an outbound message — so there is nothing to
+        // update, and a brand-new contact still gets `name || phone`
+        // applied inside the helper's insert.
+        name ?? null
       )
       if (!outcome) return null
       const convResult = await findOrCreateConversation(
@@ -401,7 +421,10 @@ function buildCoexistenceDeps(
         accountId,
         ownerUserId,
         phone,
-        name || phone
+        // Address-book entries DO carry a real name, so pass it through
+        // and let the helper apply it. Null when absent — never the
+        // phone number, which would clobber a good name with digits.
+        name ?? null
       )
       return outcome?.contact.id ?? null
     },
@@ -694,6 +717,13 @@ async function processMessage(
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
 
+  // Capture Click-to-WhatsApp attribution before anything else can
+  // bail. Meta sends `referral` on the first message of an
+  // ad-originated conversation and never again, so a later `return`
+  // (unparseable media, a failed insert) would lose the lead's origin
+  // permanently. Everything below is replaceable; this isn't.
+  await captureAttribution(contactRecord, message)
+
   // Find or create conversation
   const convResult = await findOrCreateConversation(
     accountId,
@@ -781,6 +811,11 @@ async function processMessage(
     // the column; null for every other content_type so existing inserts
     // behave identically.
     interactive_reply_id: interactiveReplyId,
+    // Raw Click-to-WhatsApp referral (migration 032). Sparse by
+    // nature — only the first message of an ad-originated thread
+    // carries one. Kept per message so last-touch stays derivable
+    // even though the contact records first touch.
+    referral: message.referral ?? null,
   })
 
   if (msgError) {
@@ -1075,7 +1110,13 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  // Null means "no name information available" — distinct from a name
+  // that happens to equal the phone number. An existing contact keeps
+  // whatever name it has; a new one falls back to the phone below.
+  // The coexistence echo path relies on this: outbound messages carry
+  // no customer name, and passing the phone as a stand-in would
+  // overwrite the real WhatsApp profile name with digits.
+  name: string | null
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
@@ -1129,6 +1170,58 @@ async function findOrCreateContact(
   }
 
   return { contact: newContact, wasCreated: true }
+}
+
+/**
+ * Record where a lead came from, once.
+ *
+ * Writes the contact's first-touch attribution columns only when they
+ * are still empty. "Which ad brought this lead" means the ad that
+ * produced them; a later click on a different ad must not rewrite
+ * their origin. Per-message referrals are kept on `messages.referral`,
+ * so last-touch stays derivable if it's ever wanted.
+ *
+ * Never throws: attribution is valuable, but not worth dropping a
+ * customer's message over. A failure is logged and the inbound path
+ * continues.
+ */
+async function captureAttribution(
+  // Both find-or-create paths return the full row (`select('*')` /
+  // `select()`), so `attribution_at` is always present — null on a
+  // contact that has never been attributed.
+  contact: ContactRow,
+  message: WhatsAppMessage,
+): Promise<void> {
+  if (!hasUsableReferral(message.referral)) return
+
+  // Already attributed — first touch wins, so leave it alone.
+  if (contact.attribution_at) return
+
+  const capturedAt = new Date(
+    parseInt(message.timestamp) * 1000,
+  ).toISOString()
+
+  const { error } = await supabaseAdmin()
+    .from('contacts')
+    .update(buildContactAttribution(message.referral, capturedAt))
+    .eq('id', contact.id)
+    // Re-check in SQL, not just in the read above: two ad clicks
+    // landing at once would both see an empty attribution and race.
+    // The second write finds the column set and matches no rows.
+    .is('attribution_at', null)
+
+  if (error) {
+    console.error('[webhook] attribution capture failed:', error.message)
+    return
+  }
+
+  console.info(
+    '[webhook] attributed contact',
+    contact.id,
+    'to',
+    message.referral.source_type ?? 'unknown',
+    message.referral.source_id ?? '(no source_id)',
+  )
 }
 
 async function findOrCreateConversation(
