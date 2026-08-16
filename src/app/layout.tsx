@@ -30,7 +30,14 @@ export const metadata: Metadata = {
     follow: false,
   },
   icons: {
-    icon: [{ url: "/icon" }],
+    // The `v` is a cache-buster, and it is load-bearing. Chrome keeps
+    // favicons in its own database, refreshed lazily and independently
+    // of HTTP caching — `Cache-Control: max-age=0, must-revalidate` on
+    // the route does not reach it, and neither does a hard reload. On a
+    // rebrand the previous mark can otherwise sit in the tab for days.
+    // Giving the icon a URL Chrome has never seen is the only reliable
+    // way to retire the old one. Bump this whenever the mark changes.
+    icon: [{ url: "/icon?v=2" }],
   },
   formatDetection: {
     email: false,
