@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import type { ContactWithAttribution, Deal, ContactNote, Tag } from "@/types";
 import {
   Phone,
   Mail,
@@ -15,13 +15,15 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Megaphone,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
-  contact: Contact | null;
+  contact: ContactWithAttribution | null;
 }
 
 export function ContactSidebar({ contact }: ContactSidebarProps) {
@@ -176,6 +178,95 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
+
+          {/*
+            Lead origin — first-touch Click-to-WhatsApp attribution.
+            Rendered only when the lead actually arrived from an ad.
+            An organic contact and one whose WABA has attribution
+            switched off look identical from here, so showing an
+            empty "no attribution" state would assert something we
+            can't actually know.
+          */}
+          {contact.attribution_at && (
+            <>
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Megaphone className="h-3 w-3" />
+                  Lead origin
+                </div>
+                <div className="mt-2 space-y-2 px-1">
+                  {contact.attribution_headline && (
+                    <p className="text-xs font-medium text-foreground">
+                      {contact.attribution_headline}
+                    </p>
+                  )}
+                  {contact.attribution_body && (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {contact.attribution_body}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap gap-1">
+                    {contact.attribution_source_type && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
+                        {contact.attribution_source_type}
+                      </span>
+                    )}
+                    {/* The join key for per-ad reporting — worth
+                        showing verbatim so it can be pasted into
+                        Ads Manager. */}
+                    {contact.attribution_source_id && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {contact.attribution_source_id}
+                      </span>
+                    )}
+                  </div>
+
+                  {contact.attribution_utm &&
+                    Object.keys(contact.attribution_utm).length > 0 && (
+                      <div className="space-y-0.5">
+                        {Object.entries(contact.attribution_utm).map(
+                          ([key, value]) => (
+                            <div
+                              key={key}
+                              className="flex gap-2 text-[10px] text-muted-foreground"
+                            >
+                              <span className="font-mono">{key}</span>
+                              <span className="truncate text-foreground">
+                                {value}
+                              </span>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+
+                  {contact.attribution_source_url && (
+                    <a
+                      href={contact.attribution_source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Source link
+                    </a>
+                  )}
+
+                  <p className="text-[10px] text-muted-foreground">
+                    Arrived{" "}
+                    {format(
+                      new Date(contact.attribution_at),
+                      "d MMM yyyy, HH:mm",
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="my-4 border-t border-border" />
+            </>
+          )}
 
           {/* Tags */}
           <div>
