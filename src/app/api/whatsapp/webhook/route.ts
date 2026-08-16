@@ -393,7 +393,15 @@ function buildCoexistenceDeps(
         accountId,
         ownerUserId,
         phone,
-        name || phone
+        // Pass through null rather than falling back to the phone
+        // number. findOrCreateContact renames an existing contact
+        // whenever the name it receives differs, so a phone-number
+        // fallback would overwrite the real WhatsApp profile name with
+        // digits on every echo. Echoes carry no name — the customer's
+        // name is not in an outbound message — so there is nothing to
+        // update, and a brand-new contact still gets `name || phone`
+        // applied inside the helper's insert.
+        name ?? null
       )
       if (!outcome) return null
       const convResult = await findOrCreateConversation(
@@ -413,7 +421,10 @@ function buildCoexistenceDeps(
         accountId,
         ownerUserId,
         phone,
-        name || phone
+        // Address-book entries DO carry a real name, so pass it through
+        // and let the helper apply it. Null when absent — never the
+        // phone number, which would clobber a good name with digits.
+        name ?? null
       )
       return outcome?.contact.id ?? null
     },
@@ -1099,7 +1110,13 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  // Null means "no name information available" — distinct from a name
+  // that happens to equal the phone number. An existing contact keeps
+  // whatever name it has; a new one falls back to the phone below.
+  // The coexistence echo path relies on this: outbound messages carry
+  // no customer name, and passing the phone as a stand-in would
+  // overwrite the real WhatsApp profile name with digits.
+  name: string | null
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
