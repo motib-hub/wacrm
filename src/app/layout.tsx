@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { BRAND } from "@/lib/branding";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { ThemedToaster } from "@/components/themed-toaster";
 import {
@@ -20,10 +21,10 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "wacrm",
-    template: "%s — wacrm",
+    default: BRAND.name,
+    template: `%s — ${BRAND.name}`,
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: BRAND.description,
   robots: {
     index: false,
     follow: false,
