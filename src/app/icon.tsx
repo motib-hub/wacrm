@@ -1,18 +1,30 @@
 import { ImageResponse } from "next/og";
+import { BRAND } from "@/lib/branding";
 
-// Replaces the default Next.js favicon with the brand mark — Hostinger
-// violet rounded square + white chat-square glyph — matching the
-// sidebar logo in `src/components/layout/sidebar.tsx`. Next.js renders
-// this at build time and auto-injects <link rel="icon"> into <head>.
+// Favicon for this deployment — the isotype on the brand squircle,
+// matching the sidebar logo in `src/components/brand/brand-mark.tsx`
+// and, at the Motib defaults, the official app icon from the 2026
+// brand manual.
 //
-// This route takes precedence over src/app/favicon.ico, which is the
-// Next.js default and can stay on disk harmlessly (or be removed).
+// Colors come from BRAND.mark as raw hex rather than CSS variables:
+// this renders through Satori, where no stylesheet exists to resolve
+// `--primary` against.
+//
+// The mark goes in as a data-URI <img> rather than an inline <svg>
+// element. Satori's inline-SVG support is partial and varies by
+// element; an <img> is decoded by its image pipeline, which handles a
+// full path definition reliably.
 
 export const runtime = "edge";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
 export default function Icon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="${BRAND.logoPath}" fill="${BRAND.mark.foreground}"/></svg>`;
+  // btoa is latin1-only; the path is pure ASCII and the colors are hex,
+  // so there is nothing here it can choke on.
+  const markSrc = `data:image/svg+xml;base64,${btoa(svg)}`;
+
   return new ImageResponse(
     (
       <div
@@ -22,22 +34,11 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
-          borderRadius: 6,
+          borderRadius: 7,
+          background: BRAND.mark.background,
         }}
       >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
+        <img src={markSrc} alt="" width={21} height={21} />
       </div>
     ),
     { ...size },

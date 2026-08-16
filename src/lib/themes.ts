@@ -1,3 +1,5 @@
+import { BRAND } from "@/lib/branding";
+
 /**
  * Single source of truth for the color-theme catalog.
  *
@@ -14,6 +16,7 @@
  */
 
 export const THEME_IDS = [
+  "motib",
   "violet",
   "emerald",
   "cobalt",
@@ -23,7 +26,13 @@ export const THEME_IDS = [
 
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const DEFAULT_THEME: ThemeId = "violet";
+// Sourced from the deployment's brand so a client instance opens on
+// its own accent. `isThemeId` is a hoisted function declaration, so
+// calling it above its definition is safe; an unknown id from the
+// environment falls back instead of rendering an unthemed app.
+export const DEFAULT_THEME: ThemeId = isThemeId(BRAND.defaultTheme)
+  ? BRAND.defaultTheme
+  : "motib";
 
 export const STORAGE_KEY = "wacrm.theme";
 
@@ -67,6 +76,12 @@ export interface ThemeMeta {
 }
 
 export const THEMES: ReadonlyArray<ThemeMeta> = [
+  {
+    id: "motib",
+    name: "Motib",
+    tagline: "Brand green — the house accent.",
+    swatch: "oklch(0.735 0.101 173)",
+  },
   {
     id: "violet",
     name: "Violet",

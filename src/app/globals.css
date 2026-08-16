@@ -161,6 +161,24 @@ html[data-theme="violet"] {
   --sidebar-ring: oklch(0.526 0.247 293);
 }
 
+/* Motib house accent — brand green #5dbea3, converted to OKLCH so it
+   sits in the same space as the themes above. Paired with an ink
+   foreground (#1a1a1a) because L=0.735 is far too light to carry white
+   text at AA. */
+html[data-theme="motib"] {
+  --primary: oklch(0.735 0.101 173);
+  --primary-foreground: oklch(0.18 0.02 173);
+  --primary-hover: oklch(0.79 0.09 173);
+  --primary-soft: oklch(0.735 0.101 173 / 0.12);
+  --primary-soft-2: oklch(0.735 0.101 173 / 0.22);
+  --ring: oklch(0.735 0.101 173);
+  --chart-1: oklch(0.735 0.101 173);
+  --chart-2: oklch(0.7 0.12 200);
+  --sidebar-primary: oklch(0.735 0.101 173);
+  --sidebar-primary-foreground: oklch(0.18 0.02 173);
+  --sidebar-ring: oklch(0.735 0.101 173);
+}
+
 html[data-theme="emerald"] {
   --primary: oklch(0.62 0.16 162);
   --primary-foreground: oklch(0.16 0.02 162);

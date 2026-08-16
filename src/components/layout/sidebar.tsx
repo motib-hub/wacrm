@@ -27,6 +27,8 @@ import {
   Zap,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
+import { BRAND } from "@/lib/branding";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -185,11 +187,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <MessageSquare className="h-4 w-4" />
+            {/* Brand colors inline, not `bg-primary`: the logo is the
+                logo — it keeps its identity when the user picks a
+                different accent theme, and stays identical to the
+                favicon. */}
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-lg"
+              style={{
+                background: BRAND.mark.background,
+                color: BRAND.mark.foreground,
+              }}
+            >
+              <BrandMark className="h-[18px] w-[18px]" />
             </div>
             <span className="text-sm font-semibold text-foreground">
-              CRM Template for WhatsApp
+              {BRAND.name}
             </span>
           </Link>
           <button
@@ -289,6 +301,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             })}
           </ul>
         </nav>
+
+        {/* Agency signature — the co-branding half of white-labelling.
+            The client's team sees their own CRM above and who provides
+            it down here. Hidden when the deployment sets an empty
+            NEXT_PUBLIC_BRAND_AGENCY_NAME. */}
+        {BRAND.agency ? (
+          <a
+            href={BRAND.agency.url}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 px-4 pb-2 text-[11px] text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+          >
+            por {BRAND.agency.name}
+          </a>
+        ) : null}
 
         {/* User section */}
         <div className="shrink-0 border-t border-border p-3">
