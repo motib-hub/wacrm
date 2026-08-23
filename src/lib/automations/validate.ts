@@ -111,7 +111,9 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
       if (!nonEmpty(c.subject)) {
         issues.push({ path: `${path}.subject`, message: 'condition subject is required' })
       }
-      if (!nonEmpty(c.operand)) {
+      // two_way_conversation reads the thread itself — there is nothing to
+      // compare it against, so it is the one subject with no operand.
+      if (c.subject !== 'two_way_conversation' && !nonEmpty(c.operand)) {
         issues.push({ path: `${path}.operand`, message: 'condition operand is required' })
       }
       break

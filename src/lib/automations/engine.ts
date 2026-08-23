@@ -499,6 +499,22 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
     case 'create_deal': {
       const cfg = step.step_config as CreateDealStepConfig
       if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('create_deal needs pipeline + stage')
+      // One open deal per contact per pipeline. Several automations can
+      // legitimately fire for the same person — a lead who asks the price
+      // and then asks for a meeting matches two of them — and each extra
+      // insert would put the same person in the pipeline twice, inflating
+      // the count and splitting their history. Re-running is a no-op; a
+      // closed deal does not block a genuinely new opportunity later.
+      if (args.contactId) {
+        const { count: openDeals } = await db
+          .from('deals')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', args.automation.account_id)
+          .eq('contact_id', args.contactId)
+          .eq('pipeline_id', cfg.pipeline_id)
+          .eq('status', 'open')
+        if ((openDeals ?? 0) > 0) return 'deal already open, skipped'
+      }
       // Match the account's configured default currency rather than
       // the static `deals.currency` DB default — keeps automation-
       // created deals consistent with the one-currency-per-account
@@ -509,6 +525,21 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .select('default_currency')
         .eq('id', args.automation.account_id)
         .maybeSingle()
+      // `{{contact.name}}` is what every deal template ships with, and
+      // without this lookup it interpolated to an empty string — the
+      // pipeline filled up with identically-titled deals. Falls back to
+      // the phone, which is what an unnamed WhatsApp contact is called
+      // everywhere else in the UI.
+      let contactName = ''
+      if (args.contactId && cfg.title.includes('contact.')) {
+        const { data: c } = await db
+          .from('contacts')
+          .select('name, phone')
+          .eq('id', args.contactId)
+          .eq('account_id', args.automation.account_id)
+          .maybeSingle()
+        contactName = (c?.name as string) || (c?.phone as string) || ''
+      }
       await db.from('deals').insert({
         // Tenancy + audit, same split as automation_logs above.
         account_id: args.automation.account_id,
@@ -516,7 +547,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         pipeline_id: cfg.pipeline_id,
         stage_id: cfg.stage_id,
         contact_id: args.contactId,
-        title: interpolate(cfg.title, args),
+        title: interpolate(cfg.title, args, { 'contact.name': contactName }),
         value: cfg.value ?? 0,
         currency: acct?.default_currency ?? 'USD',
         status: 'open',
@@ -623,6 +654,27 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       const text = (args.context.message_text ?? '').toString()
       return text.toLowerCase().includes((cfg.value ?? '').toLowerCase())
     }
+    case 'two_way_conversation': {
+      // True when someone on our side has already answered in this thread,
+      // so the inbound message that triggered this run is a reply rather
+      // than another line of a monologue. Counting the contact's own
+      // messages would measure insistence, not interest: three unanswered
+      // "hola?" would qualify while one detailed pricing question would not.
+      //
+      // 'agent' covers both the CRM composer and — under coexistence — the
+      // echo of a reply typed on the phone, which is the common case here.
+      // 'bot' counts too: an auto-reply is still an answer the contact came
+      // back to. Conversations are account-scoped through their contact, and
+      // the contact-ownership guard in runAutomationsForTrigger already ran.
+      const conversationId = args.context.conversation_id
+      if (!conversationId) return false
+      const { count } = await db
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversationId)
+        .in('sender_type', ['agent', 'bot'])
+      return (count ?? 0) > 0
+    }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window
       // (supports over-midnight ranges like "18:00-09:00").
@@ -648,9 +700,17 @@ function waitMs(cfg: WaitStepConfig): number {
   return Math.max(1_000, cfg.amount * unitMs)
 }
 
-function interpolate(s: string, args: ExecuteArgs): string {
+function interpolate(
+  s: string,
+  args: ExecuteArgs,
+  /** Values the caller already looked up, keyed by full placeholder name
+   *  (e.g. `contact.name`). Takes precedence over the built-ins. */
+  extra?: Record<string, string>,
+): string {
   return s.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
-    const [ns, prop] = String(key).split('.')
+    const full = String(key)
+    if (extra && full in extra) return extra[full]
+    const [ns, prop] = full.split('.')
     if (ns === 'message' && prop === 'text') return String(args.context.message_text ?? '')
     if (ns === 'vars' && prop) return String(args.context.vars?.[prop] ?? '')
     return ''

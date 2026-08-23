@@ -1309,8 +1309,10 @@ function StepEditor({
               <option value="contact_field">Contact field</option>
               <option value="message_content">Message content</option>
               <option value="time_of_day">Time of day</option>
+              <option value="two_way_conversation">Contact replied to us</option>
             </select>
           </FieldBlock>
+          {cfg.subject !== "two_way_conversation" && (
           <FieldBlock label="Operand">
             <Input
               placeholder={
@@ -1327,6 +1329,7 @@ function StepEditor({
               className="bg-muted text-foreground"
             />
           </FieldBlock>
+          )}
           {(cfg.subject === "contact_field" || cfg.subject === "message_content") && (
             <FieldBlock label="Value">
               <Input
