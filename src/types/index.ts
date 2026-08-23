@@ -531,7 +531,12 @@ export type ConditionSubject =
   | 'contact_field'
   | 'tag_presence'
   | 'message_content'
-  | 'time_of_day';
+  | 'time_of_day'
+  /** True once the thread has become a two-way exchange: the contact is
+   *  writing back after someone on our side already answered. Distinguishes
+   *  a conversation from a stream of unanswered messages, which is what a
+   *  raw message count would measure. */
+  | 'two_way_conversation';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;

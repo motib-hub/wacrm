@@ -887,8 +887,14 @@ async function processMessage(
   // Fire any automations that react to this webhook event. All dispatches
   // run here (not earlier) so the contact, conversation, and inbound
   // message all exist before any step — including send_message — runs.
-  // Fire-and-forget: a slow or failing automation must not block the
-  // webhook's 200 OK response to Meta.
+  // Awaited, not fire-and-forget: we are inside the route's `after()`
+  // block, which keeps the function alive only for promises it can see. A
+  // detached dispatch is the same hazard as issue #301 — the runtime froze
+  // the function the moment the awaited work finished, and the automation's
+  // 3-5 sequential round trips never landed, so no tag, no deal and no
+  // automation_logs row explained it. `runAutomationsForTrigger` owns its
+  // try/catch and never throws, so awaiting cannot break the 200 OK (that
+  // response was already sent before `after()` ran).
   const inboundText = contentText ?? message.text?.body ?? ''
   const automationTriggers: (
     | 'new_contact_created'
@@ -910,7 +916,7 @@ async function processMessage(
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
   for (const triggerType of automationTriggers) {
-    runAutomationsForTrigger({
+    await runAutomationsForTrigger({
       accountId,
       triggerType,
       contactId: contactRecord.id,
