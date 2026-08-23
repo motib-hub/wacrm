@@ -655,24 +655,41 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       return text.toLowerCase().includes((cfg.value ?? '').toLowerCase())
     }
     case 'two_way_conversation': {
-      // True when someone on our side has already answered in this thread,
-      // so the inbound message that triggered this run is a reply rather
-      // than another line of a monologue. Counting the contact's own
-      // messages would measure insistence, not interest: three unanswered
-      // "hola?" would qualify while one detailed pricing question would not.
+      // True when the contact has written *after* our first reply landed —
+      // they got an answer and chose to keep going. Counting their own
+      // messages instead would measure insistence, not interest: three
+      // unanswered "hola?" would qualify while one detailed pricing
+      // question would not.
+      //
+      // The ordering matters more than it looks. Merely checking that a
+      // reply exists is not enough when an autoresponder sits on the
+      // number: it answers within seconds, so by the time this condition
+      // runs on the contact's *first* message a reply is already in the
+      // thread, and every new contact qualifies instantly. Requiring a
+      // customer message strictly newer than that reply is immune to it.
       //
       // 'agent' covers both the CRM composer and — under coexistence — the
       // echo of a reply typed on the phone, which is the common case here.
-      // 'bot' counts too: an auto-reply is still an answer the contact came
-      // back to. Conversations are account-scoped through their contact, and
-      // the contact-ownership guard in runAutomationsForTrigger already ran.
+      // 'bot' counts too: an auto-reply is still an answer. Conversations
+      // are account-scoped through their contact, and the ownership guard
+      // in runAutomationsForTrigger already ran.
       const conversationId = args.context.conversation_id
       if (!conversationId) return false
+      const { data: firstReply } = await db
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', conversationId)
+        .in('sender_type', ['agent', 'bot'])
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+      if (!firstReply?.created_at) return false
       const { count } = await db
         .from('messages')
         .select('id', { count: 'exact', head: true })
         .eq('conversation_id', conversationId)
-        .in('sender_type', ['agent', 'bot'])
+        .eq('sender_type', 'customer')
+        .gt('created_at', firstReply.created_at)
       return (count ?? 0) > 0
     }
     case 'time_of_day': {
