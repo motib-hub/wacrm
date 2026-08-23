@@ -116,6 +116,26 @@ export interface Tag {
   created_at: string;
 }
 
+/**
+ * A registered non-ad origin (migration 033). Meta names the ad a
+ * Click-to-WhatsApp lead came from; every other channel arrives
+ * anonymous, so each placement gets its own opening sentence in a
+ * prefilled `wa.me` link and the webhook reads it back.
+ */
+export interface LeadSource {
+  id: string;
+  account_id: string;
+  created_by: string | null;
+  /** Stable reporting key, derived from the label. */
+  code: string;
+  /** What a human reads on the contact card. */
+  label: string;
+  /** The sentence carried by the prefilled link. */
+  match_text: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ContactTag {
   id: string;
   contact_id: string;

@@ -23,6 +23,11 @@ import {
   hasUsableReferral,
   type WhatsAppReferral,
 } from '@/lib/whatsapp/referral'
+import {
+  buildLeadSourceAttribution,
+  matchLeadSource,
+  type LeadSource,
+} from '@/lib/whatsapp/lead-source'
 
 // The `after()` callback in POST runs within this route's max duration.
 // Inbound processing can fan out to per-media Meta verification calls, so
@@ -797,6 +802,16 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
+  // Non-ad origin: the sentence a prefilled wa.me link put in their
+  // mouth. Runs after captureAttribution above, and only writes when
+  // the contact still has no origin, so a real Meta referral always
+  // wins — that is evidence from the platform, this is evidence from
+  // text the person could have edited. First message only: the prefill
+  // arrives once, and first touch is what an origin means.
+  if (isFirstInboundMessage) {
+    await captureLeadSource(accountId, contactRecord.id, contentText, message)
+  }
+
   const { error: msgError } = await supabaseAdmin().from('messages').insert({
     conversation_id: conversation.id,
     sender_type: 'customer',
@@ -1228,6 +1243,67 @@ async function captureAttribution(
     message.referral.source_type ?? 'unknown',
     message.referral.source_id ?? '(no source_id)',
   )
+}
+
+/**
+ * Record the channel a non-ad lead arrived through.
+ *
+ * Meta names the origin only for Click-to-WhatsApp ads. Everyone else —
+ * website button, shop QR, bio link, email signature — arrives with a
+ * phone number and a message and nothing else, because UTMs do not
+ * survive the jump out of the browser. What does survive is the
+ * sentence a prefilled `wa.me/...?text=` link put in the message, so
+ * the account registers one sentence per placement in `lead_sources`
+ * and we look for it here.
+ *
+ * Writes into the same `contacts.attribution_*` columns as ads, with
+ * `attribution_source_type = 'link'`: one origin per contact, one
+ * place to read it, one export.
+ *
+ * Never throws. An origin is worth having, not worth dropping a
+ * customer's message over.
+ */
+async function captureLeadSource(
+  accountId: string,
+  contactId: string,
+  messageText: string | null,
+  message: WhatsAppMessage,
+): Promise<void> {
+  if (!messageText?.trim()) return
+
+  const db = supabaseAdmin()
+  const { data: sources, error: loadError } = await db
+    .from('lead_sources')
+    .select('id, code, label, match_text')
+    .eq('account_id', accountId)
+    .eq('is_active', true)
+
+  if (loadError) {
+    console.error('[webhook] lead source lookup failed:', loadError.message)
+    return
+  }
+  if (!sources || sources.length === 0) return
+
+  const matched = matchLeadSource(messageText, sources as LeadSource[])
+  if (!matched) return
+
+  const capturedAt = new Date(parseInt(message.timestamp) * 1000).toISOString()
+  const { error } = await db
+    .from('contacts')
+    .update(buildLeadSourceAttribution(matched, messageText, capturedAt))
+    .eq('id', contactId)
+    .eq('account_id', accountId)
+    // First touch wins, and the ad referral captured moments ago set
+    // this column if there was one. Re-checked in SQL rather than from
+    // a stale read so two simultaneous first messages cannot both win.
+    .is('attribution_at', null)
+
+  if (error) {
+    console.error('[webhook] lead source capture failed:', error.message)
+    return
+  }
+
+  console.info('[webhook] attributed contact', contactId, 'to link', matched.code)
 }
 
 async function findOrCreateConversation(
