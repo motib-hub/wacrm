@@ -29,6 +29,19 @@ export default function LoginPage() {
   );
 }
 
+/**
+ * Turns the raw reason from /auth/callback into something a person can act
+ * on. Supabase's own wording ("invalid flow state, no valid flow state
+ * found") describes the PKCE verifier, not what the visitor did wrong.
+ */
+function linkError(raw: string | null): string | null {
+  if (!raw) return null;
+  if (raw === "invalid_link" || raw.includes("flow state")) {
+    return "That link can't be used here. Open it in the browser you requested it from, or ask for a new one.";
+  }
+  return "That link has expired or was already used. Request a new one below.";
+}
+
 function LoginPageInner() {
   const searchParams = useSearchParams();
   // Forwarded from `/join/<token>` when the visitor already has an
@@ -38,7 +51,13 @@ function LoginPageInner() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // `/auth/callback` sends people here with `?error=` when a mailed link
+  // can't be redeemed — expired, already used, or opened in a different
+  // browser than the one that asked for it. Showing why beats dropping
+  // them on a blank sign-in form that looks like nothing happened.
+  const [error, setError] = useState<string | null>(
+    linkError(searchParams.get("error"))
+  );
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
