@@ -19,7 +19,11 @@ interface Script {
   contactCandidatesByCall?: ContactRow[][];
   insertedContactId?: string; // contacts insert -> single
   insertContactError?: { code?: string } | null;
-  existingConversation?: { id: string } | null; // conversations select.maybeSingle
+  existingConversation?: { id: string } | null; // conversations select -> limit(1)
+  /** Every conversation row the contact has, oldest first. Overrides
+   *  `existingConversation`; lets a test stand in for the duplicate
+   *  threads production ended up with. */
+  existingConversations?: { id: string }[];
   insertedConversationId?: string; // conversations insert -> single
 }
 
@@ -46,14 +50,21 @@ function makeDb(script: Script): SupabaseClient {
       likeCalls++;
       return Promise.resolve({ data, error: null });
     },
+    order: () => builder,
+    // Terminal for the conversations lookup, which now reads
+    // oldest-first with limit(1) instead of maybeSingle().
+    limit: () => {
+      if (table === 'conversations' && mode === 'select') {
+        const rows =
+          script.existingConversations ??
+          (script.existingConversation ? [script.existingConversation] : []);
+        return Promise.resolve({ data: rows.slice(0, 1), error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
+    },
     maybeSingle: () => {
       if (table === 'whatsapp_config')
         return Promise.resolve({ data: script.config ?? null, error: null });
-      if (table === 'conversations' && mode === 'select')
-        return Promise.resolve({
-          data: script.existingConversation ?? null,
-          error: null,
-        });
       return Promise.resolve({ data: null, error: null });
     },
     single: () => {
@@ -167,5 +178,20 @@ describe('resolveConversationByPhone', () => {
     expect(res.contactId).toBe('c-raced');
     expect(res.contactCreated).toBe(false);
     expect(res.conversationId).toBe('cv-raced');
+  });
+
+  it('reuses the oldest thread when a contact already has duplicates', async () => {
+    // The regression this guards: `.maybeSingle()` reported an error for
+    // more than one row, the caller read that as "none exists", and
+    // created yet another thread — so one lost race became a thread per
+    // inbound message. Duplicates must resolve, not multiply.
+    const db = makeDb({
+      config: { user_id: 'owner-1' },
+      contactCandidates: [{ id: 'c-dup', phone: '14155550123' }],
+      existingConversations: [{ id: 'cv-oldest' }, { id: 'cv-newer' }],
+      insertedConversationId: 'cv-should-not-be-created',
+    });
+    const res = await resolveConversationByPhone(db, 'acct', '+14155550123');
+    expect(res.conversationId).toBe('cv-oldest');
   });
 });

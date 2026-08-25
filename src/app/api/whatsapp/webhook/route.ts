@@ -1311,16 +1311,28 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  // Look for existing conversation in this account
+  // Oldest-first + limit(1) rather than `.single()`. `.single()` fails
+  // on *more than one* row exactly as it fails on none, and both were
+  // read here as "no conversation exists" — so a single duplicate pair,
+  // once created, made every later message create yet another thread.
+  // One lost race turned into a thread per inbound message, splitting a
+  // real conversation across the inbox. Tolerating duplicates here is
+  // what stops that from compounding; migration 034 merges the ones
+  // already created and adds the unique index that prevents new ones.
   const { data: existing, error: findError } = await supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
-    .single()
+    .order('created_at', { ascending: true })
+    .limit(1)
 
-  if (!findError && existing) {
-    return { conversation: existing, created: false }
+  if (findError) {
+    console.error('Error finding conversation:', findError)
+    return null
+  }
+  if (existing && existing.length > 0) {
+    return { conversation: existing[0], created: false }
   }
 
   // Create new conversation. Same tenancy + audit split as
@@ -1336,6 +1348,23 @@ async function findOrCreateConversation(
     .single()
 
   if (createError) {
+    // Lost the race against a concurrent webhook — an inbound message
+    // and its Coexistence echo arrive within milliseconds of each
+    // other, which is how the first duplicate got created. The unique
+    // index (034) now rejects the second insert, so re-read instead of
+    // failing: the winner's row is the conversation we wanted.
+    if (isUniqueViolation(createError)) {
+      const { data: raced } = await supabaseAdmin()
+        .from('conversations')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+      if (raced && raced.length > 0) {
+        return { conversation: raced[0], created: false }
+      }
+    }
     console.error('Error creating conversation:', createError)
     return null
   }
