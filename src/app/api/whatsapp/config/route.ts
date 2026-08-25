@@ -189,6 +189,13 @@ export async function POST(request: Request) {
     // Coexistence numbers are already registered by Meta as part of
     // the QR pairing; see the /register skip below.
     const coexistence = body.coexistence === true
+    // The account's own Meta app (migration 035). Set when the WABA
+    // lives in the client's own Business portfolio and is reached
+    // through their app rather than the operator's — which is how an
+    // agency connects a client whose WABA has no partner slot free.
+    // Blank means "keep using META_APP_SECRET".
+    const appId: string | null = trimmedOrNull(body.app_id)
+    const appSecret: string | null = trimmedOrNull(body.app_secret)
 
     if (!access_token || !phone_number_id) {
       return NextResponse.json(
@@ -257,9 +264,14 @@ export async function POST(request: Request) {
     // Encrypt sensitive tokens before storing
     let encryptedAccessToken: string
     let encryptedVerifyToken: string | null
+    let encryptedAppSecret: string | null
     try {
       encryptedAccessToken = encrypt(access_token)
       encryptedVerifyToken = verify_token ? encrypt(verify_token) : null
+      // Same treatment as the access token: this secret is what proves a
+      // webhook payload really came from Meta, so a leak would let
+      // anyone forge inbound messages for this account.
+      encryptedAppSecret = appSecret ? encrypt(appSecret) : null
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown encryption error'
       console.error('Encryption failed:', message)
@@ -378,6 +390,8 @@ export async function POST(request: Request) {
       waba_id: waba_id || null,
       access_token: encryptedAccessToken,
       verify_token: encryptedVerifyToken,
+      app_id: appId,
+      app_secret: encryptedAppSecret,
       status: registrationError ? 'disconnected' : 'connected',
       connected_at: registrationError ? null : new Date().toISOString(),
       registered_at: registrationError ? null : registeredAt,
@@ -498,4 +512,17 @@ export async function DELETE() {
     console.error('Error in WhatsApp config DELETE:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+/**
+ * Optional text field off a JSON body: a value, or null.
+ *
+ * An empty string has to become null rather than be stored as-is —
+ * `app_secret = ''` would read as "this account has its own app" and
+ * the webhook would try to verify signatures against nothing.
+ */
+function trimmedOrNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
 }

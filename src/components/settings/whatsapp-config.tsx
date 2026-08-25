@@ -75,6 +75,11 @@ export function WhatsAppConfig() {
   // API share one number. Drives the /register skip server-side and
   // unlocks the "import from the phone" action below.
   const [coexistence, setCoexistence] = useState(false);
+  // The account's own Meta app. Only needed when the WABA lives in the
+  // client's Business portfolio and can't be shared with ours because
+  // its partner slots are full — see the field's help text below.
+  const [appId, setAppId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
   const [syncing, setSyncing] = useState(false);
 
   // True once /register has succeeded on Meta's side (timestamp set
@@ -219,6 +224,8 @@ export function WhatsAppConfig() {
         // sent through /register.
         pin: coexistence ? null : pin.trim() || null,
         coexistence,
+        app_id: appId.trim() || null,
+        app_secret: appSecret.trim() || null,
       };
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
@@ -691,6 +698,56 @@ export function WhatsAppConfig() {
               <p className="text-xs text-muted-foreground">
                 A custom string you create. Must match the token you set in Meta webhook settings.
               </p>
+            </div>
+
+            {/*
+              Own Meta app. Leave both blank and this number is verified
+              with the operator-wide META_APP_SECRET, which is what a
+              single-number install wants. Fill them in when the WhatsApp
+              account belongs to someone else's Business portfolio and
+              can't be shared with yours — Meta caps how many partners a
+              WhatsApp account may have, and that cap is usually already
+              taken by a chatbot or a previous provider.
+            */}
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div>
+                <Label className="text-foreground">
+                  Own Meta app{' '}
+                  <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Fill these in when this number is reached through its own
+                  Meta app instead of yours — the way to connect a client
+                  whose WhatsApp account has no partner slot free. Point that
+                  app&apos;s webhook at this same URL. Leave blank to keep
+                  using the app configured for the whole install.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">App ID</Label>
+                <Input
+                  placeholder="e.g. 2499395287254373"
+                  value={appId}
+                  onChange={(e) => setAppId(e.target.value)}
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">App Secret</Label>
+                <Input
+                  type="password"
+                  placeholder="Meta → App Settings → Basic → App Secret"
+                  value={appSecret}
+                  onChange={(e) => setAppSecret(e.target.value)}
+                  className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Stored encrypted. It&apos;s what proves an incoming webhook
+                  really came from Meta, so treat it like the access token.
+                </p>
+              </div>
             </div>
 
             {/* Connection mode — coexistence vs a dedicated API number */}
