@@ -138,16 +138,21 @@ export async function resolveConversationByPhone(
 
   // ---- conversation -------------------------------------------
   // One conversation per (account, contact) — same convention as the
-  // webhook.
-  const { data: conv } = await db
+  // webhook. Oldest-first + limit(1), not `.maybeSingle()`: that helper
+  // reports an error for *more than one* row just as the webhook's
+  // `.single()` did, and reading that as "none exists" is what let a
+  // single duplicate multiply into a thread per message. Migration 034
+  // merges the existing duplicates and makes new ones impossible.
+  const { data: convs } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
-    .maybeSingle();
+    .order('created_at', { ascending: true })
+    .limit(1);
 
-  if (conv?.id) {
-    return { conversationId: conv.id, contactId, contactCreated };
+  if (convs && convs.length > 0) {
+    return { conversationId: convs[0].id, contactId, contactCreated };
   }
 
   const { data: newConv, error: convErr } = await db
@@ -161,6 +166,21 @@ export async function resolveConversationByPhone(
     .single();
 
   if (convErr || !newConv) {
+    // Lost the race against a concurrent inbound webhook — re-read the
+    // winner's row rather than failing a send that has nothing wrong
+    // with it.
+    if (isUniqueViolation(convErr)) {
+      const { data: raced } = await db
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (raced && raced.length > 0) {
+        return { conversationId: raced[0].id, contactId, contactCreated };
+      }
+    }
     console.error('[resolve-conversation] conversation create error:', convErr);
     throw new SendMessageError(
       'db_error',
