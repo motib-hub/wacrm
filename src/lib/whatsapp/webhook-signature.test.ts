@@ -65,5 +65,74 @@ describe("verifyMetaWebhookSignature", () => {
       const header = signedHeader(body, originalSecret!);
       expect(verifyMetaWebhookSignature(body, header)).toBe(false);
     });
+
+    it("still accepts a payload signed by an account's own app", () => {
+      // The whole point of per-account secrets: a client whose WABA
+      // lives in their own portfolio brings their own Meta app, and the
+      // operator-wide env var may not even exist.
+      const body = "{}";
+      const ownSecret = "client-owned-app-secret";
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, ownSecret), [
+          ownSecret,
+        ]),
+      ).toBe(true);
+    });
+  });
+
+  describe("per-account app secrets", () => {
+    const ACCOUNT_SECRET = "account-scoped-secret";
+
+    it("accepts a payload signed with the account's own secret", () => {
+      const body = JSON.stringify({ object: "whatsapp_business_account" });
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, ACCOUNT_SECRET), [
+          ACCOUNT_SECRET,
+          SECRET,
+        ]),
+      ).toBe(true);
+    });
+
+    it("still accepts the operator-wide secret when both are offered", () => {
+      // Numbers connected through our own Meta app must keep working
+      // unchanged while other accounts bring their own.
+      const body = JSON.stringify({ object: "whatsapp_business_account" });
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, SECRET), [
+          ACCOUNT_SECRET,
+          SECRET,
+        ]),
+      ).toBe(true);
+    });
+
+    it("rejects a secret belonging to neither", () => {
+      const body = "{}";
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, "someone-else"), [
+          ACCOUNT_SECRET,
+          SECRET,
+        ]),
+      ).toBe(false);
+    });
+
+    it("ignores nullish candidates so callers need not filter", () => {
+      // The account secret is null for every account that hasn't got its
+      // own app, which is the common case.
+      const body = "{}";
+      expect(
+        verifyMetaWebhookSignature(body, signedHeader(body, SECRET), [
+          null,
+          undefined,
+          SECRET,
+        ]),
+      ).toBe(true);
+    });
+
+    it("falls back to the env var when the candidate list is empty", () => {
+      const body = "{}";
+      expect(verifyMetaWebhookSignature(body, signedHeader(body), [])).toBe(
+        true,
+      );
+    });
   });
 });

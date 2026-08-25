@@ -197,19 +197,34 @@ export async function POST(request: Request) {
   const rawBody = await request.text()
   const signature = request.headers.get('x-hub-signature-256')
 
-  if (!verifyMetaWebhookSignature(rawBody, signature)) {
-    // 401 (not 200) — we want Meta's delivery dashboard to show failures
-    // loudly if a misconfiguration causes signatures to stop matching,
-    // rather than silently eating events.
-    console.warn('[webhook] rejected request with invalid signature')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
-  }
-
   let body: { entry?: WhatsAppWebhookEntry[] }
   try {
     body = JSON.parse(rawBody)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  // Parsing before verifying looks backwards, and isn't: the parsed body
+  // is used for exactly one thing here — reading the phone_number_id to
+  // decide *which* app secret to check the signature against. Nothing is
+  // trusted or written until the signature passes, and a forged
+  // phone_number_id only picks a different real secret, which the
+  // forger still cannot produce a valid HMAC for.
+  //
+  // The account's own secret comes first, the operator-wide env var
+  // second, so a number connected through the client's own Meta app and
+  // one connected through ours both verify.
+  const accountSecret = await lookupAppSecret(body)
+
+  if (!verifyMetaWebhookSignature(rawBody, signature, [
+    accountSecret,
+    process.env.META_APP_SECRET,
+  ])) {
+    // 401 (not 200) — we want Meta's delivery dashboard to show failures
+    // loudly if a misconfiguration causes signatures to stop matching,
+    // rather than silently eating events.
+    console.warn('[webhook] rejected request with invalid signature')
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }
 
   // Process AFTER the response so we ack Meta within their ~20s timeout
@@ -322,6 +337,52 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
  * Returns null (already logged) when the event can't be attributed to
  * exactly one account; every caller drops the event in that case.
  */
+/**
+ * The app secret to check this payload's signature against, when the
+ * account brought its own Meta app.
+ *
+ * Reads the phone_number_id out of the still-unverified body purely to
+ * pick a key — see the note at the call site. Returns null for anything
+ * it cannot resolve (unparseable shape, unknown number, account with no
+ * app of its own, undecryptable value), and the caller falls back to
+ * the operator-wide secret. Never throws: a lookup failure must not
+ * turn into a 500 that makes Meta retry a payload we would reject
+ * anyway.
+ */
+async function lookupAppSecret(body: {
+  entry?: WhatsAppWebhookEntry[]
+}): Promise<string | null> {
+  try {
+    // Meta batches changes from one WABA per delivery, so any entry
+    // that names a number identifies the account for the whole payload.
+    let phoneNumberId: string | undefined
+    for (const entry of body?.entry ?? []) {
+      for (const change of entry?.changes ?? []) {
+        const id = change?.value?.metadata?.phone_number_id
+        if (id) {
+          phoneNumberId = id
+          break
+        }
+      }
+      if (phoneNumberId) break
+    }
+    if (!phoneNumberId) return null
+
+    const { data } = await supabaseAdmin()
+      .from('whatsapp_config')
+      .select('app_secret')
+      .eq('phone_number_id', phoneNumberId)
+      .limit(1)
+
+    const stored = data?.[0]?.app_secret
+    if (!stored) return null
+    return decrypt(stored)
+  } catch (err) {
+    console.error('[webhook] app secret lookup failed:', err)
+    return null
+  }
+}
+
 async function resolveConfigByPhoneNumberId(
   phoneNumberId: string | undefined
   // The row is read with select('*') off the untyped admin client, and
