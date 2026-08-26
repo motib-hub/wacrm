@@ -654,6 +654,28 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
       const text = (args.context.message_text ?? '').toString()
       return text.toLowerCase().includes((cfg.value ?? '').toLowerCase())
     }
+    case 'arrived_from_ad': {
+      // A click you paid for is the strongest intent signal available,
+      // and it arrives with the very first message — earlier than any
+      // keyword and long before a reply-to-a-reply. Requiring those on
+      // top of it would leave the most expensive leads out of the
+      // pipeline for saying "hola" instead of "precio".
+      //
+      // Reads the contact's first-touch origin (migration 032), so it
+      // stays true for the whole relationship rather than only on the
+      // message that carried the referral. `source_type` is Meta's
+      // word: 'ad' for paid, 'post' for an organic post — only the
+      // former was paid for. Link-based origins (type 'link') are not
+      // ads and deliberately don't qualify.
+      if (!args.contactId) return false
+      const { data } = await db
+        .from('contacts')
+        .select('attribution_source_type')
+        .eq('id', args.contactId)
+        .eq('account_id', args.automation.account_id)
+        .maybeSingle()
+      return data?.attribution_source_type === 'ad'
+    }
     case 'two_way_conversation': {
       // True when the contact has written *after* our first reply landed —
       // they got an answer and chose to keep going. Counting their own

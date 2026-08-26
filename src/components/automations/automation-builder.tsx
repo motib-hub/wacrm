@@ -1310,9 +1310,11 @@ function StepEditor({
               <option value="message_content">Message content</option>
               <option value="time_of_day">Time of day</option>
               <option value="two_way_conversation">Contact replied to us</option>
+              <option value="arrived_from_ad">Came from a paid ad</option>
             </select>
           </FieldBlock>
-          {cfg.subject !== "two_way_conversation" && (
+          {cfg.subject !== "two_way_conversation" &&
+            cfg.subject !== "arrived_from_ad" && (
           <FieldBlock label="Operand">
             <Input
               placeholder={
