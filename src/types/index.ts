@@ -556,7 +556,11 @@ export type ConditionSubject =
    *  writing back after someone on our side already answered. Distinguishes
    *  a conversation from a stream of unanswered messages, which is what a
    *  raw message count would measure. */
-  | 'two_way_conversation';
+  | 'two_way_conversation'
+  /** True when the contact's recorded origin is a paid ad. Someone who
+   *  arrived through a click you paid for has already shown the intent
+   *  the other subjects are trying to detect. */
+  | 'arrived_from_ad';
 
 export interface ConditionStepConfig {
   subject: ConditionSubject;
