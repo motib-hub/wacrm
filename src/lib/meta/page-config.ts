@@ -92,12 +92,17 @@ export async function lookupAppSecretByPageOrIgId(
 ): Promise<string | null> {
   if (!id) return null
   try {
-    const { data } = await db
-      .from('meta_page_config')
-      .select('app_secret')
-      .or(`page_id.eq.${id},ig_user_id.eq.${id}`)
-      .limit(1)
-    const stored = data?.[0]?.app_secret
+    // Two `.eq()` calls, not a single `.or('page_id.eq.${id},...')`.
+    // `id` is read from the still-unverified body (see the doc comment
+    // above), so it must never be interpolated into a raw PostgREST
+    // filter string — a comma or operator in it could reshape the
+    // filter's structure, not just its value. `.eq()` binds `id` as a
+    // parameter instead, the same way WhatsApp's `lookupAppSecret` does.
+    const [byPage, byIg] = await Promise.all([
+      db.from('meta_page_config').select('app_secret').eq('page_id', id),
+      db.from('meta_page_config').select('app_secret').eq('ig_user_id', id),
+    ])
+    const stored = byPage.data?.[0]?.app_secret ?? byIg.data?.[0]?.app_secret
     if (!stored) return null
     return decrypt(stored)
   } catch (err) {

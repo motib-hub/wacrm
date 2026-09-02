@@ -20,9 +20,6 @@ function makeStub(rows: unknown[] | null, error: unknown = null) {
             eq() {
               return Promise.resolve({ data: rows, error })
             },
-            or() {
-              return { limit: () => Promise.resolve({ data: rows, error }) }
-            },
           }
         },
       }
