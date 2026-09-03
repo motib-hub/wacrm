@@ -11,6 +11,7 @@ import { ProfileForm } from '@/components/settings/profile-form';
 import { SecurityPanel } from '@/components/settings/security-panel';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { MetaPageConfigPanel } from '@/components/settings/meta-page-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { FieldsAndTagsPanel } from '@/components/settings/fields-and-tags-panel';
 import { LeadSourcesPanel } from '@/components/settings/lead-sources-panel';
@@ -57,6 +58,7 @@ export default function SettingsPage() {
     security: <SecurityPanel />,
     appearance: <AppearancePanel />,
     whatsapp: <WhatsAppConfig />,
+    meta: <MetaPageConfigPanel />,
     templates: <TemplateManager />,
     fields: <FieldsAndTagsPanel />,
     sources: <LeadSourcesPanel />,
