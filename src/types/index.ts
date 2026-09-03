@@ -314,6 +314,24 @@ export interface WhatsAppConfig {
   last_sync_error?: string;
 }
 
+export interface MetaPageConfig {
+  id: string;
+  account_id: string;
+  user_id: string;
+  page_id: string;
+  /** Nullable — a page can run Lead Ads with no Instagram account linked. */
+  ig_user_id?: string | null;
+  page_name?: string | null;
+  access_token: string;
+  /** Falls back to the operator-wide META_APP_SECRET env var when absent. */
+  app_secret?: string | null;
+  app_id?: string | null;
+  /** Shared by both the Instagram and Lead Ads webhook handshakes. */
+  verify_token?: string | null;
+  status: 'connected' | 'disconnected';
+  connected_at?: string | null;
+}
+
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
 // rather than collapsing to a local TitleCase set — distinctions like
 // PAUSED vs DISABLED vs IN_APPEAL drive the edit/resubmit/delete flows.

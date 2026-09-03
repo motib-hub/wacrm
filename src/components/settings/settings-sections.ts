@@ -1,4 +1,5 @@
 import {
+  AtSign,
   Coins,
   FileText,
   KeyRound,
@@ -27,6 +28,7 @@ export const SETTINGS_SECTIONS = [
   'security',
   'appearance',
   'whatsapp',
+  'meta',
   'templates',
   'fields',
   'sources',
@@ -53,6 +55,7 @@ export const SECTION_META: Record<SettingsSection, SectionMeta> = {
   security: { id: 'security', label: 'Login & security', icon: Shield, group: 'account' },
   appearance: { id: 'appearance', label: 'Appearance', icon: Palette, group: 'account' },
   whatsapp: { id: 'whatsapp', label: 'WhatsApp', icon: PlugZap, group: 'workspace' },
+  meta: { id: 'meta', label: 'Instagram & Lead Ads', icon: AtSign, group: 'workspace' },
   templates: { id: 'templates', label: 'Templates', icon: FileText, group: 'workspace' },
   fields: { id: 'fields', label: 'Fields & tags', icon: Tags, group: 'workspace' },
   sources: { id: 'sources', label: 'Lead sources', icon: Route, group: 'workspace' },
