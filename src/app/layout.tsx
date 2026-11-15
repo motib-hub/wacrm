@@ -47,6 +47,10 @@ const metadata: Metadata = {
     // Giving the icon a URL Chrome has never seen is the only reliable
     // way to retire the old one. Bump this whenever the mark changes.
     icon: [{ url: "/icon?v=2" }],
+    // Fork: the explicit `icons` above stops Next from linking
+    // apple-icon.tsx on its own, so it is listed here. Without it iOS
+    // draws a letter tile on the home screen.
+    apple: [{ url: "/apple-icon?v=1", sizes: "180x180" }],
   },
   // Fork seam: open full-screen when added to an iPhone home screen
   // (icon in apple-icon.tsx, manifest in manifest.ts).
