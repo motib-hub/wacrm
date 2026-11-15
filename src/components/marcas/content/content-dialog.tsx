@@ -32,7 +32,9 @@ export function ContentDialog({ piece, onClose }: { piece: ContentPiece; onClose
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto border-border bg-popover sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="pr-6">{piece.title || t("noCopy")}</DialogTitle>
+          <DialogTitle className="pr-6">
+            {piece.title || (piece.formats.includes("historia") ? t("storiesTitle") : t("noCopy"))}
+          </DialogTitle>
           <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             {piece.date ? <span>{dayLabel(piece.date, locale)}</span> : <span>{t("undated")}</span>}
             {piece.time ? <span>· {piece.time}</span> : null}
@@ -87,7 +89,7 @@ export function ContentDialog({ piece, onClose }: { piece: ContentPiece; onClose
           </div>
         ) : null}
 
-        <Section label={t("copy")} text={piece.copy || t("noCopy")} muted={!piece.copy} />
+        {piece.copy || piece.origin === "sheet" ? <Section label={t("copy")} text={piece.copy || t("noCopy")} muted={!piece.copy} /> : null}
         {piece.story ? <Section label={t("story")} text={piece.story} /> : null}
         {piece.notes ? <Section label={t("notes")} text={piece.notes} /> : null}
 

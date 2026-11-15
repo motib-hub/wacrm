@@ -5,7 +5,7 @@
  * and Drive stay the source of truth and are read on demand.
  */
 
-export type PieceFormat = 'reel' | 'carrusel' | 'imagen' | 'historia';
+export type PieceFormat = 'reel' | 'carrusel' | 'imagen' | 'historia' | 'feed';
 
 /** Where the piece stands, derived from the row and its folder. */
 export type PieceStatus =
@@ -13,6 +13,7 @@ export type PieceStatus =
   | 'programada' // the sheet's "Programado" box is ticked
   | 'lista' // the linked folder/file has material
   | 'sin-material' // linked folder exists but is empty
+  | 'sin-acceso' // linked, but the reader can't open it (not shared with the robot)
   | 'sin-pieza'; // planned row with no link yet
 
 export type PieceLink =
@@ -49,6 +50,8 @@ export interface PlannedRow {
 export interface ContentPiece extends PlannedRow {
   status: PieceStatus;
   media: PieceMedia[];
+  /** 'sheet' = a planned row; 'drive' = material found in a dated Drive folder with no row for it. */
+  origin: 'sheet' | 'drive';
 }
 
 export interface ContentResponse {

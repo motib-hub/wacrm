@@ -12,6 +12,11 @@ import { dayLabel } from "./content-style";
 import { useBrandContent, type ContentRange } from "./use-brand-content";
 
 const RANGES: ContentRange[] = ["next7", "next14", "next30", "past14"];
+const FILTERS = ["all", "feed", "stories"] as const;
+type Filter = (typeof FILTERS)[number];
+
+/** Stories-only pieces (a sheet row ticked HISTORIA, or a day of Drive stories). */
+const isStory = (p: ContentPiece) => p.formats.includes("historia") && p.formats.every((f) => f === "historia");
 
 /** The read-only Google robot sheets must be shared with (Viewer). */
 const ROBOT_EMAIL = "crm-lector@motib-crm.iam.gserviceaccount.com";
@@ -29,9 +34,15 @@ export function ContentBoard({ brandId }: { brandId: string }) {
   const locale = useLocale();
   const [range, setRange] = useState<ContentRange>("next14");
   const [open, setOpen] = useState<ContentPiece | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
   const { data, error, loading, reload } = useBrandContent(brandId, range);
 
-  const groups = useMemo(() => groupByDay(data?.pieces ?? []), [data]);
+  const groups = useMemo(() => {
+    const pieces = (data?.pieces ?? []).filter((p) =>
+      filter === "all" ? true : filter === "stories" ? isStory(p) : !isStory(p),
+    );
+    return groupByDay(pieces);
+  }, [data, filter]);
   const updated = data
     ? new Date(data.generatedAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
     : null;
@@ -53,6 +64,23 @@ export function ContentBoard({ brandId }: { brandId: string }) {
               )}
             >
               {t(`range.${r}`)}
+            </button>
+          ))}
+        </div>
+        <div role="tablist" className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+          {FILTERS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="tab"
+              aria-selected={filter === f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(`filter.${f}`)}
             </button>
           ))}
         </div>
@@ -97,11 +125,26 @@ export function ContentBoard({ brandId }: { brandId: string }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {date ? dayLabel(date, locale) : t("undated")}
               </h3>
-              <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {pieces.map((p) => (
-                  <ContentCard key={p.key} piece={p} onOpen={() => setOpen(p)} />
-                ))}
-              </div>
+              {pieces.some((p) => !isStory(p)) ? (
+                <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {pieces.filter((p) => !isStory(p)).map((p) => (
+                    <ContentCard key={p.key} piece={p} onOpen={() => setOpen(p)} />
+                  ))}
+                </div>
+              ) : null}
+              {pieces.some(isStory) ? (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-medium text-muted-foreground">{t("storiesTitle")}</span>
+                  {/* Stories scroll sideways like on the phone: narrow 9:16 tiles. */}
+                  <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
+                    {pieces.filter(isStory).map((p) => (
+                      <div key={p.key} className="w-28 shrink-0 snap-start sm:w-32">
+                        <ContentCard piece={p} variant="story" onOpen={() => setOpen(p)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </section>
           ))}
         </div>

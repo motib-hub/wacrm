@@ -46,6 +46,22 @@ absorbs the board's 90 s auto-refresh. A row the robot can't open shows
 as missing material instead of failing the board. The robot reads files
 shared with it or shared "anyone with the link".
 
+Two sources are merged (`src/lib/marcas/content/merge.ts`): the sheet
+(what is planned) and the brand's Instagram folder, `marcas_brands.drive_url`
+(what exists). The folder follows one layout for every client:
+
+```
+NN_Instagram/                     (number follows the client's own folders)
+  Planificación - MARCA           (the sheet)
+  Feed/    11. Noviembre/  18-11. Título/      one folder per piece
+  Stories/ 11. Noviembre/  18-11. 01.jpg       or a "18-11" folder
+```
+
+Motib's stories (`Stories/2026-11-16 lunes/`) are read as well. A row's
+own link wins; a dated feed row without a link takes that day's folder;
+unclaimed feed folders show as "not in the plan"; each day's stories
+become one strip, minus files a row already links.
+
 ## Rules
 
 1. **Never hard-code a product name.** Components import `BRAND`; the

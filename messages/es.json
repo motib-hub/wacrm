@@ -3013,14 +3013,24 @@
         "programada": "Programada",
         "lista": "Lista",
         "sin-material": "Carpeta vacía",
-        "sin-pieza": "Falta pieza"
+        "sin-pieza": "Falta pieza",
+        "sin-acceso": "Sin acceso"
       },
       "format": {
         "reel": "Reel",
         "carrusel": "Carrusel",
         "imagen": "Imagen",
-        "historia": "Historia"
-      }
+        "historia": "Historia",
+        "feed": "Feed"
+      },
+      "filter": {
+        "all": "Todo",
+        "feed": "Feed",
+        "stories": "Historias"
+      },
+      "storiesTitle": "Historias",
+      "unplanned": "Sin planificar",
+      "storiesCount": "{count, plural, =1 {1 historia} other {# historias}}"
     }
   }
 }

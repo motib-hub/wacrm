@@ -12,6 +12,7 @@ describe('loader helpers', () => {
     const folder = { kind: 'drive-folder' as const, id: 'f', url: 'u' };
     expect(statusFor({ ...base, link: null }, [])).toBe('sin-pieza');
     expect(statusFor({ ...base, link: folder }, [])).toBe('sin-material');
+    expect(statusFor({ ...base, link: folder }, null)).toBe('sin-acceso');
     expect(statusFor({ ...base, link: folder }, [{ id: '1', name: 'a', kind: 'image', thumbnail: null, viewUrl: '' }])).toBe('lista');
     expect(statusFor({ ...base, link: folder, scheduled: true }, [])).toBe('programada');
     expect(statusFor({ ...base, link: { kind: 'instagram', url: 'u' } }, [])).toBe('publicada');

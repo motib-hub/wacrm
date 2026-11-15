@@ -16,15 +16,38 @@ export interface SheetCell {
 
 const MONTHS: Record<string, number> = {
   ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6,
-  jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12,
+  jul: 7, ago: 8, ag: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12,
 };
 
-/** "Nov'26", "nov 2026", "Noviembre 26" → { year: 2026, month: 11 }; else null. */
-export function monthFromTabTitle(title: string): { year: number; month: number } | null {
-  const m = normalize(title).match(/^([A-Z]{3})[A-Z]*\W*(\d{2}|\d{4})$/);
+/** Month number from a Spanish month word or its abbreviation ("Nov", "Ag", "Noviembre"). */
+export function monthFromWord(word: string): number | null {
+  const w = normalize(word).toLowerCase();
+  return MONTHS[w.slice(0, 3)] ?? MONTHS[w.slice(0, 2)] ?? null;
+}
+
+/**
+ * A year for a month given without one, as the sheets' "Nov'" or "Dic"
+ * tabs are: the occurrence closest to `today` (within six months either
+ * side), so December read in November is this year and January next.
+ */
+export function nearestYear(month: number, today: Date = new Date()): number {
+  const y = today.getFullYear();
+  const diff = month - (today.getMonth() + 1);
+  if (diff > 6) return y - 1;
+  if (diff < -6) return y + 1;
+  return y;
+}
+
+/** "Nov'26", "nov 2026", "Noviembre 26", "Ag'26", "Nov'", "Dic" → { year, month }; else null. */
+export function monthFromTabTitle(
+  title: string,
+  today: Date = new Date(),
+): { year: number; month: number } | null {
+  const m = normalize(title).match(/^([A-Z]{2,})\W*(\d{2}|\d{4})?\W*$/);
   if (!m) return null;
-  const month = MONTHS[m[1].toLowerCase()];
+  const month = monthFromWord(m[1]);
   if (!month) return null;
+  if (!m[2]) return { year: nearestYear(month, today), month };
   const year = m[2].length === 2 ? 2000 + Number(m[2]) : Number(m[2]);
   return { year, month };
 }
@@ -55,6 +78,7 @@ const FORMAT_RULES: [PieceFormat, RegExp][] = [
   ['carrusel', /^CARRU/],
   ['imagen', /^(IMG|IMAGEN|FOTO)/],
   ['historia', /^HISTORIA/],
+  ['feed', /^FEED/],
 ];
 
 export function parseLink(url: string | undefined): PieceLink | null {
@@ -109,6 +133,7 @@ export function parsePlanningTab(tabTitle: string, grid: SheetCell[][]): Planned
   const month = monthFromTabTitle(tabTitle);
 
   const rows: PlannedRow[] = [];
+  let lastDate: string | null = null;
   for (let r = firstDataRow; r < grid.length; r++) {
     const row = grid[r] ?? [];
     const at = (role: Role) => (columns[role] === undefined ? undefined : row[columns[role]!]);
@@ -120,9 +145,13 @@ export function parsePlanningTab(tabTitle: string, grid: SheetCell[][]): Planned
     // planned. Only rows with a topic, a link or a copy are content.
     if (!title && !link && !copy) continue;
 
+    // A day with two pieces lists the date once: a blank FECHA under a
+    // dated row belongs to that same day.
+    const ownDate = resolveDate(text(at('date')), month);
+    if (ownDate) lastDate = ownDate;
     rows.push({
       key: `${tabTitle}:${r + 1}`,
-      date: resolveDate(text(at('date')), month),
+      date: ownDate ?? lastDate,
       time: text(at('time')) || null,
       title,
       formats: formatColumns.filter(([, i]) => ticked(row[i])).map(([f]) => f),

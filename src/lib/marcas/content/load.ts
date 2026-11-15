@@ -1,11 +1,16 @@
 import { googleGet, GoogleApiError } from '@/lib/marcas/google/client';
+import { getFile, isMediaFile, listFolder, mapLimited, toMedia } from './drive-api';
+import { scanInstagramFolder } from './drive-scan';
+import { mergeSheetAndDrive, type Draft } from './merge';
 import { monthFromTabTitle, parsePlanningTab, type SheetCell } from './sheet-parser';
 import type { ContentPiece, PieceMedia, PieceStatus, PlannedRow } from './types';
 
 /**
- * Reads a brand's planning sheet and the Drive material each row links
- * to, live. Only the month tabs that overlap the requested window are
- * read, and each linked folder is listed once.
+ * Builds a brand's content board, live, from two sources:
+ *  - its planning sheet (what is planned: date, topic, copy, format), and
+ *  - its Instagram folder in Drive (what exists: dated Feed and Stories
+ *    folders), so material shows up even when nobody pasted its link.
+ * Only month tabs and month folders that overlap the window are read.
  *
  * A short per-instance cache (CACHE_MS) absorbs the board's auto-refresh
  * and several people looking at the same brand, while keeping "Ailén
@@ -13,11 +18,15 @@ import type { ContentPiece, PieceMedia, PieceStatus, PlannedRow } from './types'
  */
 
 const CACHE_MS = 60_000;
-const FOLDER_CONCURRENCY = 5;
+const CONCURRENCY = 5;
 const cache = new Map<string, { at: number; pieces: ContentPiece[] }>();
 
 export function spreadsheetIdFromUrl(url: string | null): string | null {
   return url?.match(/\/spreadsheets\/d\/([\w-]+)/)?.[1] ?? null;
+}
+
+export function folderIdFromUrl(url: string | null): string | null {
+  return url?.match(/\/folders\/([\w-]+)/)?.[1] ?? null;
 }
 
 /** Month keys ("2026-11") that a [from, to] date window touches. */
@@ -60,49 +69,18 @@ async function readPlannedRows(spreadsheetId: string, months: Set<string>): Prom
   );
 }
 
-interface DriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  thumbnailLink?: string;
-  webViewLink?: string;
-}
+const unreadable = (err: unknown) => err instanceof GoogleApiError && (err.status === 403 || err.status === 404);
 
-const FILE_FIELDS = 'id,name,mimeType,thumbnailLink,webViewLink';
-
-function toMedia(file: DriveFile): PieceMedia {
-  const kind = file.mimeType.startsWith('image/') ? 'image' : file.mimeType.startsWith('video/') ? 'video' : 'other';
-  return {
-    id: file.id,
-    name: file.name,
-    kind,
-    // Drive hands back a 220px thumbnail; ask for a sharper one.
-    thumbnail: file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+$/, '=s800') : null,
-    viewUrl: file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`,
-  };
-}
-
+/** Material behind a row's link; null when the robot can't open it. */
 async function mediaFor(row: PlannedRow): Promise<PieceMedia[] | null> {
   const link = row.link;
   try {
-    if (link?.kind === 'drive-folder') {
-      const q = encodeURIComponent(`'${link.id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`);
-      const res = await googleGet<{ files?: DriveFile[] }>(
-        `https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=name&pageSize=50&fields=files(${FILE_FIELDS})` +
-          '&supportsAllDrives=true&includeItemsFromAllDrives=true',
-      );
-      return (res.files ?? []).map(toMedia);
-    }
-    if (link?.kind === 'drive-file') {
-      const file = await googleGet<DriveFile>(
-        `https://www.googleapis.com/drive/v3/files/${link.id}?fields=${FILE_FIELDS}&supportsAllDrives=true`,
-      );
-      return [toMedia(file)];
-    }
+    if (link?.kind === 'drive-folder') return (await listFolder(link.id)).filter(isMediaFile).map(toMedia);
+    if (link?.kind === 'drive-file') return [toMedia(await getFile(link.id))];
   } catch (err) {
     // A folder the robot can't see is a sharing problem on one row, not a
     // reason to fail the whole board: the card says so instead.
-    if (err instanceof GoogleApiError && (err.status === 403 || err.status === 404)) return null;
+    if (unreadable(err)) return null;
     throw err;
   }
   return [];
@@ -112,43 +90,43 @@ export function statusFor(row: PlannedRow, media: PieceMedia[] | null): PieceSta
   if (row.link?.kind === 'instagram') return 'publicada';
   if (row.scheduled) return 'programada';
   if (!row.link) return 'sin-pieza';
+  if (media === null) return 'sin-acceso';
   if (media && media.length > 0) return 'lista';
   if (row.link.kind === 'other') return 'lista';
   return 'sin-material';
 }
 
-async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
-        const i = next++;
-        out[i] = await fn(items[i]);
-      }
-    }),
-  );
-  return out;
+async function finish(draft: Draft): Promise<ContentPiece> {
+  const media = draft.media ?? (await mediaFor(draft));
+  return { ...draft, media: media ?? [], status: statusFor(draft, media) };
 }
 
 export async function loadBrandContent(
   brandId: string,
-  sheetUrl: string,
+  sources: { sheetUrl: string | null; folderUrl: string | null },
   window: { from: string; to: string },
 ): Promise<ContentPiece[]> {
   const cacheKey = `${brandId}|${window.from}|${window.to}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.pieces;
 
-  const spreadsheetId = spreadsheetIdFromUrl(sheetUrl);
-  if (!spreadsheetId) return [];
-  const rows = (await readPlannedRows(spreadsheetId, monthsInWindow(window.from, window.to))).filter(
-    (r) => !r.date || (r.date >= window.from && r.date <= window.to),
-  );
-  const pieces = await mapLimited(rows, FOLDER_CONCURRENCY, async (row) => {
-    const media = await mediaFor(row);
-    return { ...row, media: media ?? [], status: statusFor(row, media) } satisfies ContentPiece;
+  const sheetId = spreadsheetIdFromUrl(sources.sheetUrl);
+  const folderId = folderIdFromUrl(sources.folderUrl);
+  const [rows, drive] = await Promise.all([
+    sheetId ? readPlannedRows(sheetId, monthsInWindow(window.from, window.to)) : Promise.resolve([]),
+    folderId
+      ? scanInstagramFolder(folderId, window).catch((err) => {
+          if (unreadable(err)) return { feedFolders: [], storyDays: [] };
+          throw err;
+        })
+      : Promise.resolve({ feedFolders: [], storyDays: [] }),
+  ]);
+
+  const drafts = mergeSheetAndDrive({
+    rows: rows.filter((r) => !r.date || (r.date >= window.from && r.date <= window.to)),
+    ...drive,
   });
+  const pieces = await mapLimited(drafts, CONCURRENCY, finish);
   pieces.sort((a, b) => (a.date ?? '9999').localeCompare(b.date ?? '9999') || (a.time ?? '').localeCompare(b.time ?? ''));
   cache.set(cacheKey, { at: Date.now(), pieces });
   return pieces;

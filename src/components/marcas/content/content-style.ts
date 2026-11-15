@@ -11,6 +11,7 @@ export const PIECE_STATUS_STYLE: Record<PieceStatus, string> = {
   lista: "border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-300",
   "sin-material": "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300",
   "sin-pieza": "border-destructive/40 bg-destructive/10 text-destructive",
+  "sin-acceso": "border-border bg-muted text-muted-foreground",
 };
 
 /** "2026-11-04" → "mié 4/11" in the board's locale, read as a calendar day. */

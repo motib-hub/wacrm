@@ -33,20 +33,24 @@ export async function GET(request: Request) {
 
   const { data: brand } = await supabase
     .from('marcas_brands')
-    .select('id, sheet_url')
+    .select('id, sheet_url, drive_url')
     .eq('id', brandId)
     .limit(1)
     .maybeSingle()
   if (!brand) return NextResponse.json({ error: 'not found' }, { status: 404 })
-  if (!brand.sheet_url) {
+  if (!brand.sheet_url && !brand.drive_url) {
     return NextResponse.json({ error: 'no_sheet' }, { status: 409 })
   }
 
   try {
-    const pieces = await loadBrandContent(brand.id, brand.sheet_url, { from, to })
+    const pieces = await loadBrandContent(
+      brand.id,
+      { sheetUrl: brand.sheet_url, folderUrl: brand.drive_url },
+      { from, to },
+    )
     const body: ContentResponse = {
       brandId: brand.id,
-      sheetUrl: brand.sheet_url,
+      sheetUrl: brand.sheet_url ?? brand.drive_url,
       generatedAt: new Date().toISOString(),
       pieces,
     }

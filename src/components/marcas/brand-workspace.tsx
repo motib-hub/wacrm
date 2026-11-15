@@ -58,7 +58,7 @@ export function BrandWorkspace({ brandId }: { brandId: string }) {
         ) : null}
       </header>
 
-      {brand.sheet_url ? (
+      {brand.sheet_url || brand.drive_url ? (
         <div role="tablist" className="inline-flex w-fit rounded-lg border border-border bg-muted/40 p-0.5">
           {(["tasks", "content"] as const).map((key) => (
             <button
@@ -78,7 +78,7 @@ export function BrandWorkspace({ brandId }: { brandId: string }) {
         </div>
       ) : null}
 
-      {tab === "content" && brand.sheet_url ? (
+      {tab === "content" && (brand.sheet_url || brand.drive_url) ? (
         <ContentBoard brandId={brand.id} />
       ) : (
         <TaskBoard

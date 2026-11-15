@@ -3013,14 +3013,24 @@
         "programada": "Scheduled",
         "lista": "Ready",
         "sin-material": "Folder empty",
-        "sin-pieza": "Missing piece"
+        "sin-pieza": "Missing piece",
+        "sin-acceso": "No access"
       },
       "format": {
         "reel": "Reel",
         "carrusel": "Carousel",
         "imagen": "Image",
-        "historia": "Story"
-      }
+        "historia": "Story",
+        "feed": "Feed"
+      },
+      "filter": {
+        "all": "All",
+        "feed": "Feed",
+        "stories": "Stories"
+      },
+      "storiesTitle": "Stories",
+      "unplanned": "Not in the plan",
+      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}"
     }
   }
 }

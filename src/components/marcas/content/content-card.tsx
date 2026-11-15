@@ -11,7 +11,16 @@ import { PIECE_STATUS_STYLE } from "./content-style";
  * shown as Google's own thumbnail (loaded straight from Google — the CRM
  * stores and proxies nothing).
  */
-export function ContentCard({ piece, onOpen }: { piece: ContentPiece; onOpen: () => void }) {
+export function ContentCard({
+  piece,
+  onOpen,
+  variant = "feed",
+}: {
+  piece: ContentPiece;
+  onOpen: () => void;
+  /** Stories render as narrow 9:16 tiles in their own strip. */
+  variant?: "feed" | "story";
+}) {
   const t = useTranslations("Marcas.content");
   const cover = piece.media.find((m) => m.thumbnail) ?? null;
   const isVideo = cover?.kind === "video";
@@ -23,7 +32,7 @@ export function ContentCard({ piece, onOpen }: { piece: ContentPiece; onOpen: ()
       className="group flex w-full flex-col overflow-hidden rounded-lg border border-border bg-card text-left shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {cover?.thumbnail ? (
-        <span className="relative block aspect-[4/5] w-full bg-muted">
+        <span className={cn("relative block w-full bg-muted", variant === "story" ? "aspect-[9/16]" : "aspect-[4/5]")}>
           {/* eslint-disable-next-line @next/next/no-img-element -- signed Google URL, not a static asset */}
           <img src={cover.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
           {isVideo ? (
@@ -51,13 +60,18 @@ export function ContentCard({ piece, onOpen }: { piece: ContentPiece; onOpen: ()
       )}
       <span className="flex flex-col gap-1.5 p-2.5">
         <span className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
-          {piece.title || piece.copy.slice(0, 60)}
+          {piece.title || piece.copy.slice(0, 60) || t("storiesTitle")}
         </span>
         <span className="flex flex-wrap items-center gap-1.5 text-[10px]">
           <span className={cn("rounded-full border px-1.5 py-0.5 font-medium", PIECE_STATUS_STYLE[piece.status])}>
             {t(`status.${piece.status}`)}
           </span>
-          {piece.formats.map((f) => (
+          {piece.origin === "drive" && variant === "feed" ? (
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-300">
+              {t("unplanned")}
+            </span>
+          ) : null}
+          {variant === "feed" && piece.formats.map((f) => (
             <span key={f} className="rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">
               {t(`format.${f}`)}
             </span>

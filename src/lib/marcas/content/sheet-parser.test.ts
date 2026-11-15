@@ -68,3 +68,18 @@ describe('parsePlanningTab', () => {
     expect(parsePlanningTab('Pilares general', [[c('PILAR'), c('DESCRIPCIÓN')]])).toEqual([]);
   });
 });
+
+describe('rows that share a day', () => {
+  it('inherit the date of the row above when FECHA is blank', () => {
+    const header = [c('MES'), c('DÍA'), c('FECHA'), c('HORA'), c('TEMA'), c('PIEZA'), c('UBICACIÓN'), c(), c('COPY')];
+    const sub = [c(), c(), c(), c(), c(), c(), c('FEED'), c('HISTORIA')];
+    const r = (day: string, title: string, feed: boolean, story: boolean) =>
+      [c(), c(), c(day), c(), c(title), c('Pieza', 'https://drive.google.com/file/d/x' + title), c(String(feed).toUpperCase()), c(String(story).toUpperCase()), c()];
+    const rows = parsePlanningTab("Nov'", [header, sub, r('2', 'A', true, false), r('', 'B', false, true), r('3', 'C', false, true)]);
+    expect(rows.map((x) => [x.title, x.date, x.formats])).toEqual([
+      ['A', expect.stringMatching(/-11-02$/), ['feed']],
+      ['B', expect.stringMatching(/-11-02$/), ['historia']],
+      ['C', expect.stringMatching(/-11-03$/), ['historia']],
+    ]);
+  });
+});
