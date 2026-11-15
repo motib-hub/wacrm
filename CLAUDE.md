@@ -78,13 +78,29 @@ deal, add to pipeline) already work identically on every channel,
 because `runAutomationsForTrigger` never looked at how the contact
 arrived.
 
-**No settings UI was built for `meta_page_config`.** WhatsApp has
-Settings → WhatsApp; Instagram/Lead Ads currently has to be connected
-by inserting a row directly (see PASO_11), because `access_token` /
-`app_secret` / `verify_token` need the same AES-256-GCM encryption
-`whatsapp-config.tsx`'s save handler already does, and building that
-form is a separate, sizeable PR of its own — left for whoever picks
-up connecting the first real account.
+**Settings UI for `meta_page_config` (feat/meta-settings-ui).**
+Settings → Instagram & Lead Ads (`src/components/settings/meta-page-config.tsx`,
+route `src/app/api/meta/config/route.ts`) is the WhatsApp-config
+pattern cloned onto this table: GET returns a shaped 200 in every
+non-auth failure mode (no config / corrupted token / Meta rejects the
+token) instead of a 500, POST/PUT verifies the Page Access Token
+against the Graph API (`src/lib/meta/graph-api.ts` → `verifyPageAccess`,
+a `GET /{page_id}?fields=name`) *before* encrypting and saving, and
+DELETE resets a corrupted row the same way "Reset Configuration" does
+for WhatsApp. One difference from WhatsApp's form: there's a single
+Verify Token field, not one per product, because the migration 036
+table design already made `verify_token` shared — both the Instagram
+and Lead Ads webhook handshakes check the same encrypted value. The
+panel shows both webhook callback URLs
+(`.../api/instagram/webhook`, `.../api/lead-ads/webhook`) for the
+admin to paste into the Meta App Dashboard by hand; it does not call
+Meta to subscribe anything itself — this repo is still not a Tech
+Provider / doing Embedded Signup (see
+`Herramientas del equipo/wacrm-guia/PASO_10_COEXISTENCIA.md`), so the
+manual-paste step from PASO_11 is unavoidable for now. The one
+pre-existing production row (Motib, inserted by hand per PASO_11)
+reads through this GET unmodified — the route was written and tested
+against that constraint, not by inserting a fresh row over it.
 
 **Lead Ads field matching is name-based (`full_name` / `phone_number`
 / `email`), not positional.** A form builder can reorder or rename

@@ -31,6 +31,11 @@ interface WhatsAppStatus {
   connected: boolean;
 }
 
+interface MetaStatus {
+  configured: boolean;
+  connected: boolean;
+}
+
 export function SettingsOverview({
   onSelect,
 }: {
@@ -51,6 +56,10 @@ export function SettingsOverview({
   // from blanking the rest of the landing.
   const [whatsapp, setWhatsapp] = useState<WhatsAppStatus | null>(null);
   const [whatsappLoading, setWhatsappLoading] = useState(true);
+  // Same reasoning as WhatsApp above — meta_page_config's health check
+  // decrypts a token and pings Meta, so it's tracked independently.
+  const [meta, setMeta] = useState<MetaStatus | null>(null);
+  const [metaLoading, setMetaLoading] = useState(true);
 
   useEffect(() => {
     if (!user || !accountId) return;
@@ -135,6 +144,25 @@ export function SettingsOverview({
       setWhatsappLoading(false);
     })();
 
+    // Instagram / Lead Ads connection status — slower, independent.
+    (async () => {
+      setMetaLoading(true);
+      const [row, health] = await Promise.allSettled([
+        supabase
+          .from('meta_page_config')
+          .select('page_id')
+          .eq('account_id', acctId)
+          .maybeSingle(),
+        fetch('/api/meta/config', { cache: 'no-store' }).then((r) => r.json()),
+      ]);
+      if (cancelled) return;
+      setMeta({
+        configured: row.status === 'fulfilled' && !!row.value.data?.page_id,
+        connected: health.status === 'fulfilled' && !!health.value?.connected,
+      });
+      setMetaLoading(false);
+    })();
+
     return () => {
       cancelled = true;
     };
@@ -169,6 +197,21 @@ export function SettingsOverview({
       ) : (
         <>
           <StatusDot tone="muted" /> {t('needsReconnecting')}
+        </>
+      ),
+    },
+    {
+      section: 'meta',
+      loading: metaLoading,
+      subtitle: !meta?.configured ? (
+        'Not set up yet'
+      ) : meta.connected ? (
+        <>
+          <StatusDot tone="ok" /> Connected
+        </>
+      ) : (
+        <>
+          <StatusDot tone="muted" /> Needs reconnecting
         </>
       ),
     },
