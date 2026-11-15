@@ -2980,6 +2980,45 @@
       "delete": "Delete",
       "confirmDelete": "Delete this task?",
       "cancel": "Cancel"
+    },
+    "content": {
+      "tabTasks": "Tasks",
+      "tabContent": "Content",
+      "range": {
+        "next7": "Next 7 days",
+        "next14": "Next 14 days",
+        "next30": "Next 30 days",
+        "past14": "Last 14 days"
+      },
+      "refresh": "Refresh",
+      "updatedAt": "Updated {time}",
+      "undated": "No date",
+      "empty": "Nothing planned in this period.",
+      "noSheet": "This brand has no content plan linked yet.",
+      "unavailable": "Couldn't read the content plan right now. Try again in a minute.",
+      "openSheet": "Open content plan",
+      "openFolder": "Open folder",
+      "openPost": "View on Instagram",
+      "openFile": "Open in Drive",
+      "files": "{count, plural, =1 {1 file} other {# files}}",
+      "processing": "Preview not ready yet",
+      "copy": "Copy",
+      "story": "Story",
+      "notes": "Notes",
+      "noCopy": "No copy yet",
+      "status": {
+        "publicada": "Published",
+        "programada": "Scheduled",
+        "lista": "Ready",
+        "sin-material": "Folder empty",
+        "sin-pieza": "Missing piece"
+      },
+      "format": {
+        "reel": "Reel",
+        "carrusel": "Carousel",
+        "imagen": "Image",
+        "historia": "Story"
+      }
     }
   }
 }

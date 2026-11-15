@@ -19,6 +19,8 @@ keep the next sync cheap.
 | Automation conditions `two_way_conversation`, `arrived_from_ad`; one open deal per contact and pipeline | `src/lib/automations/engine.ts`, `validate.ts` | — |
 | **Marcas** — agency workspace: brands, task board, own team membership (`admin` / `equipo`) | `src/lib/marcas`, `src/components/marcas`, `src/app/(dashboard)/marcas`, `src/hooks/use-marcas-member.ts`; seams in `sidebar.tsx`, `dashboard-shell.tsx`, `middleware.ts` | 059_motib_marcas |
 
+| **Marcas · Contenido** — the brand's content plan, read live from its "Planificación" sheet and the Drive folders it links | `src/lib/marcas/content`, `src/lib/marcas/google`, `src/components/marcas/content`, `GET /api/marcas/content`; CSP `frame-src` seam in `next.config.ts` | 059_motib_marcas_integrations |
+
 ### Marcas in one paragraph
 
 Marcas does not use CRM accounts at all: `marcas_members` is its own
@@ -30,6 +32,19 @@ shell redirects any other route. Security is RLS (`marcas_role()`,
 flagged `team_visible` are the ones `equipo` sees. The repo is public,
 so brands, members and tasks are never seeded here — they are loaded
 from a private SQL file.
+
+### Contenido (how the board stays in sync without storing anything)
+
+Nothing visual is stored. `GET /api/marcas/content` checks the brand
+with the caller's session (RLS), then reads, as a read-only Google
+service account kept encrypted in `marcas_integrations`, only the month
+tabs that overlap the requested window, finds columns by header text
+(templates differ per brand), and lists the Drive folder each "Pieza"
+cell links to. Thumbnails are Google's signed URLs loaded straight by the
+browser; videos play in Drive's own player. A 60 s per-instance cache
+absorbs the board's 90 s auto-refresh. A row the robot can't open shows
+as missing material instead of failing the board. The robot reads files
+shared with it or shared "anyone with the link".
 
 ## Rules
 

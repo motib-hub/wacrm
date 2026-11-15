@@ -56,6 +56,8 @@ const SECURITY_HEADERS = [
       // Supabase REST + realtime (WSS). All Meta API calls happen
       // server-side, so graph.facebook.com does not belong here.
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // Fork (Marcas content board): videos play in Drive's own player.
+      "frame-src https://drive.google.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

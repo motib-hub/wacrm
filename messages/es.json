@@ -2980,6 +2980,45 @@
       "delete": "Borrar",
       "confirmDelete": "¿Borrar esta tarea?",
       "cancel": "Cancelar"
+    },
+    "content": {
+      "tabTasks": "Tareas",
+      "tabContent": "Contenido",
+      "range": {
+        "next7": "Próximos 7 días",
+        "next14": "Próximos 14 días",
+        "next30": "Próximos 30 días",
+        "past14": "Últimos 14 días"
+      },
+      "refresh": "Actualizar",
+      "updatedAt": "Actualizado {time}",
+      "undated": "Sin fecha",
+      "empty": "No hay nada planificado en este período.",
+      "noSheet": "Esta marca todavía no tiene planilla de contenido enlazada.",
+      "unavailable": "No se pudo leer la planilla ahora. Probá de nuevo en un minuto.",
+      "openSheet": "Abrir planilla",
+      "openFolder": "Abrir carpeta",
+      "openPost": "Ver en Instagram",
+      "openFile": "Abrir en Drive",
+      "files": "{count, plural, =1 {1 archivo} other {# archivos}}",
+      "processing": "La vista previa todavía se está generando",
+      "copy": "Copy",
+      "story": "Historia",
+      "notes": "Observaciones",
+      "noCopy": "Todavía sin copy",
+      "status": {
+        "publicada": "Publicada",
+        "programada": "Programada",
+        "lista": "Lista",
+        "sin-material": "Carpeta vacía",
+        "sin-pieza": "Falta pieza"
+      },
+      "format": {
+        "reel": "Reel",
+        "carrusel": "Carrusel",
+        "imagen": "Imagen",
+        "historia": "Historia"
+      }
     }
   }
 }

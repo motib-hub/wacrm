@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ExternalLink, FolderOpen, Loader2, Sheet } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ContentBoard } from "./content/content-board";
 import { TaskBoard } from "./task-board";
 import { useMarcasTasks } from "./use-marcas-tasks";
 import { useMarcasWorkspace } from "./use-marcas-workspace";
@@ -12,6 +15,7 @@ export function BrandWorkspace({ brandId }: { brandId: string }) {
   const t = useTranslations("Marcas");
   const { brands, members, error } = useMarcasWorkspace(true);
   const board = useMarcasTasks(brandId);
+  const [tab, setTab] = useState<"tasks" | "content">("tasks");
 
   const loadError = error ?? board.error;
   if (loadError) return <p className="text-sm text-destructive">{t("loadError", { message: loadError })}</p>;
@@ -54,15 +58,39 @@ export function BrandWorkspace({ brandId }: { brandId: string }) {
         ) : null}
       </header>
 
-      <TaskBoard
-        tasks={board.tasks}
-        brands={brands}
-        members={members}
-        brandId={brand.id}
-        onAdd={board.add}
-        onUpdate={board.update}
-        onRemove={board.remove}
-      />
+      {brand.sheet_url ? (
+        <div role="tablist" className="inline-flex w-fit rounded-lg border border-border bg-muted/40 p-0.5">
+          {(["tasks", "content"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(key === "tasks" ? "content.tabTasks" : "content.tabContent")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {tab === "content" && brand.sheet_url ? (
+        <ContentBoard brandId={brand.id} />
+      ) : (
+        <TaskBoard
+          tasks={board.tasks}
+          brands={brands}
+          members={members}
+          brandId={brand.id}
+          onAdd={board.add}
+          onUpdate={board.update}
+          onRemove={board.remove}
+        />
+      )}
     </div>
   );
 }
