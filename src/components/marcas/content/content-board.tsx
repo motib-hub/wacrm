@@ -97,7 +97,7 @@ export function ContentBoard({ brandId }: { brandId: string }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {date ? dayLabel(date, locale) : t("undated")}
               </h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 {pieces.map((p) => (
                   <ContentCard key={p.key} piece={p} onOpen={() => setOpen(p)} />
                 ))}

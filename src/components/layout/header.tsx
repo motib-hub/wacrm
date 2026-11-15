@@ -27,6 +27,8 @@ const pageTitles: Record<string, string> = {
   "/broadcasts": "broadcasts",
   "/automations": "automations",
   "/settings": "settings",
+  // Fork (Marcas)
+  "/marcas": "marcas",
 };
 
 function getPageTitleKey(pathname: string): string {
