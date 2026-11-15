@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { loadBrandContent } from '@/lib/marcas/content/load'
 import type { ContentResponse } from '@/lib/marcas/content/types'
+import { GoogleApiError } from '@/lib/marcas/google/client'
 
 // Fork-only (Marcas, Etapa 2): the content board for one brand, read live
 // from its planning sheet and Drive. GET /api/marcas/content?brand=<id>&from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -51,6 +52,11 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (err) {
+    // The sheet itself is closed to the robot: say so, so the fix
+    // (share it with the robot's address) is obvious from the screen.
+    if (err instanceof GoogleApiError && (err.status === 403 || err.status === 404)) {
+      return NextResponse.json({ error: 'no_access' }, { status: 409 })
+    }
     console.error('[marcas/content] load failed:', err)
     return NextResponse.json({ error: 'google_unavailable' }, { status: 502 })
   }

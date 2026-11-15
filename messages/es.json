@@ -2996,6 +2996,7 @@
       "empty": "No hay nada planificado en este período.",
       "noSheet": "Esta marca todavía no tiene planilla de contenido enlazada.",
       "unavailable": "No se pudo leer la planilla ahora. Probá de nuevo en un minuto.",
+      "noAccess": "Esta planilla no está compartida con el lector del CRM. Compartila como Lector con:",
       "openSheet": "Abrir planilla",
       "openFolder": "Abrir carpeta",
       "openPost": "Ver en Instagram",

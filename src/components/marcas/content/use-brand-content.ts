@@ -20,7 +20,7 @@ export function rangeWindow(range: ContentRange, now: Date = new Date()): { from
   return { from: shift(0), to: shift(days) };
 }
 
-type LoadError = "no_sheet" | "unavailable" | null;
+type LoadError = "no_sheet" | "no_access" | "unavailable" | null;
 
 /**
  * Live content for one brand. Re-fetches every AUTO_REFRESH_MS while the
@@ -42,7 +42,7 @@ export function useBrandContent(brandId: string, range: ContentRange) {
       );
       const body = await res.json();
       if (!res.ok) {
-        setError(body?.error === "no_sheet" ? "no_sheet" : "unavailable");
+        setError(body?.error === "no_sheet" || body?.error === "no_access" ? body.error : "unavailable");
       } else {
         setData(body as ContentResponse);
         setError(null);

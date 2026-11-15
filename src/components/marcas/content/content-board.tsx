@@ -13,6 +13,9 @@ import { useBrandContent, type ContentRange } from "./use-brand-content";
 
 const RANGES: ContentRange[] = ["next7", "next14", "next30", "past14"];
 
+/** The read-only Google robot sheets must be shared with (Viewer). */
+const ROBOT_EMAIL = "crm-lector@motib-crm.iam.gserviceaccount.com";
+
 /** Pieces grouped by day, in date order; undated rows last. */
 function groupByDay(pieces: ContentPiece[]): [string | null, ContentPiece[]][] {
   const groups = new Map<string | null, ContentPiece[]>();
@@ -75,6 +78,10 @@ export function ContentBoard({ brandId }: { brandId: string }) {
 
       {error === "no_sheet" ? (
         <p className="py-10 text-sm text-muted-foreground">{t("noSheet")}</p>
+      ) : error === "no_access" ? (
+        <p className="py-10 text-sm text-muted-foreground">
+          {t("noAccess")} <span className="select-all font-mono text-foreground">{ROBOT_EMAIL}</span>
+        </p>
       ) : error && !data ? (
         <p className="py-10 text-sm text-destructive">{t("unavailable")}</p>
       ) : !data ? (

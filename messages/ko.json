@@ -2996,6 +2996,7 @@
       "empty": "Nothing planned in this period.",
       "noSheet": "This brand has no content plan linked yet.",
       "unavailable": "Couldn't read the content plan right now. Try again in a minute.",
+      "noAccess": "This content plan isn't shared with the CRM's reader. Share it (Viewer) with:",
       "openSheet": "Open content plan",
       "openFolder": "Open folder",
       "openPost": "View on Instagram",
