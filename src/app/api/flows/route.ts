@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { getFlowTemplate } from '@/lib/flows/templates'
+import { getT } from '@/lib/i18n/translate'
+
+const t = getT('Api')
 
 /**
  * GET /api/flows — list the caller's flows.
@@ -22,7 +26,7 @@ async function requireUser(): Promise<
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    return { ok: false, status: 401, body: { error: 'Unauthorized' } }
+    return { ok: false, status: 401, body: { error: t('common.unauthorized') } }
   }
   return { ok: true, userId: user.id, supabase }
 }
@@ -45,6 +49,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Creating a flow is a write — the RLS flows_insert policy requires
+  // `agent`, but this route inserts via the service-role client which
+  // bypasses RLS, so the role must be enforced here.
+  try {
+    await requireRole('agent')
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+
   const guard = await requireUser()
   if (!guard.ok) {
     return NextResponse.json(guard.body, { status: guard.status })
@@ -62,7 +75,7 @@ export async function POST(request: Request) {
   const accountId = profile?.account_id as string | undefined
   if (!accountId) {
     return NextResponse.json(
-      { error: 'Your profile is not linked to an account.' },
+      { error: t('common.profileNotLinked') },
       { status: 403 },
     )
   }
@@ -83,7 +96,7 @@ export async function POST(request: Request) {
       }
     | null
   if (!body) {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+    return NextResponse.json({ error: t('common.invalidJson') }, { status: 400 })
   }
 
   const admin = supabaseAdmin()
@@ -93,7 +106,7 @@ export async function POST(request: Request) {
     const template = getFlowTemplate(body.template_slug)
     if (!template) {
       return NextResponse.json(
-        { error: `Unknown template_slug "${body.template_slug}"` },
+        { error: t('flows.unknownTemplate', { slug: String(body.template_slug) }) },
         { status: 400 },
       )
     }
@@ -113,7 +126,7 @@ export async function POST(request: Request) {
       .single()
     if (flowErr || !flow) {
       return NextResponse.json(
-        { error: flowErr?.message ?? 'flow insert failed' },
+        { error: flowErr?.message ?? t('flows.insertFailed') },
         { status: 500 },
       )
     }
@@ -142,7 +155,7 @@ export async function POST(request: Request) {
 
   // -------- Plain (empty) create path --------
   if (!body.name?.trim()) {
-    return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    return NextResponse.json({ error: t('flows.nameRequired') }, { status: 400 })
   }
   const trigger_type = body.trigger_type ?? 'keyword'
 
@@ -161,7 +174,7 @@ export async function POST(request: Request) {
     .single()
   if (error || !data) {
     return NextResponse.json(
-      { error: error?.message ?? 'insert failed' },
+      { error: error?.message ?? t('common.insertFailed') },
       { status: 500 },
     )
   }

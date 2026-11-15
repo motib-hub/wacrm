@@ -6,7 +6,7 @@
 // whether the account is on OpenAI or Anthropic.
 // ============================================================
 
-export type AiProvider = 'openai' | 'anthropic'
+export type AiProvider = 'openai' | 'anthropic' | 'openai_compatible'
 
 /**
  * Account AI setup, decrypted and ready to use. Produced by
@@ -16,11 +16,17 @@ export type AiProvider = 'openai' | 'anthropic'
 export interface AiConfig {
   provider: AiProvider
   model: string
+  /** Base URL for OpenAI-compatible providers; null for native providers. */
+  baseUrl: string | null
   apiKey: string
   systemPrompt: string | null
   isActive: boolean
   autoReplyEnabled: boolean
   autoReplyMaxPerConversation: number
+  /** Where auto-reply hands a conversation off when the model bails: an
+   *  agent's `auth.users.id`, or null to leave it unassigned (drop into
+   *  the shared queue). */
+  handoffAgentId: string | null
   /** Optional OpenAI-compatible key for embeddings. When set, the
    *  knowledge base is embedded and semantic retrieval turns on; when
    *  null, retrieval falls back to lexical full-text search. */
@@ -33,12 +39,31 @@ export interface ChatMessage {
   content: string
 }
 
+/**
+ * Token counts for one provider call, normalized across OpenAI
+ * (`prompt`/`completion`) and Anthropic (`input`/`output`). Null when
+ * the provider didn't return usage. Logged to `ai_usage_log`.
+ */
+export interface AiUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}
+
+/** Raw text + usage a provider adapter returns before handoff parsing. */
+export interface ProviderResult {
+  text: string
+  usage: AiUsage | null
+}
+
 /** Outcome of a generation call. */
 export interface GenerateResult {
   /** The reply text, with any handoff sentinel stripped. */
   text: string
   /** True when the model asked to hand off to a human (auto-reply mode). */
   handoff: boolean
+  /** Provider token usage for this call, or null when unavailable. */
+  usage: AiUsage | null
 }
 
 /**

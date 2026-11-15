@@ -11,6 +11,10 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message'
+import { isUniqueViolation } from '@/lib/contacts/dedupe'
+import { getT } from '@/lib/i18n/translate'
+
+const t = getT('Api')
 
 // The dashboard's outbound-send endpoint. It owns auth, per-user rate
 // limiting, and the two ways the UI targets a thread — an existing
@@ -56,6 +60,7 @@ export async function POST(request: Request) {
       template_language,
       template_params,
       template_message_params,
+      interactive_payload,
       reply_to_message_id,
     } = body
 
@@ -63,7 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Either conversation_id or contact_id, plus message_type, are required',
+            t('send.idsRequired'),
         },
         { status: 400 }
       )
@@ -78,6 +83,7 @@ export async function POST(request: Request) {
         contentText: content_text,
         mediaUrl: media_url,
         templateName: template_name,
+        interactivePayload: interactive_payload,
       })
     } catch (err) {
       if (err instanceof SendMessageError) {
@@ -102,7 +108,7 @@ export async function POST(request: Request) {
 
       if (convError || !data) {
         return NextResponse.json(
-          { error: 'Conversation not found' },
+          { error: t('common.conversationNotFound') },
           { status: 404 }
         )
       }
@@ -119,7 +125,7 @@ export async function POST(request: Request) {
 
       if (contactErr || !contactRow) {
         return NextResponse.json(
-          { error: 'Contact not found' },
+          { error: t('send.contactNotFound') },
           { status: 404 }
         )
       }
@@ -132,7 +138,7 @@ export async function POST(request: Request) {
       )
       if (!resolved) {
         return NextResponse.json(
-          { error: 'Failed to open a conversation for this contact' },
+          { error: t('send.openConversationFailed') },
           { status: 500 }
         )
       }
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
 
     if (!conversationId) {
       return NextResponse.json(
-        { error: 'Conversation not found' },
+        { error: t('common.conversationNotFound') },
         { status: 404 }
       )
     }
@@ -161,7 +167,9 @@ export async function POST(request: Request) {
         templateLanguage: template_language,
         templateParams: template_params,
         templateMessageParams: template_message_params,
+        interactivePayload: interactive_payload,
         replyToMessageId: reply_to_message_id,
+        senderId: userId,
       })
 
       return NextResponse.json({
@@ -201,14 +209,18 @@ async function findOrCreateConversation(
   userId: string,
   contactId: string,
 ): Promise<string | null> {
-  const { data: existing } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .maybeSingle()
+  const findExisting = async () => {
+    const { data } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .maybeSingle()
+    return data?.id ?? null
+  }
 
-  if (existing) return existing.id
+  const existingId = await findExisting()
+  if (existingId) return existingId
 
   const { data: created, error } = await supabase
     .from('conversations')
@@ -221,6 +233,10 @@ async function findOrCreateConversation(
     .single()
 
   if (error) {
+    if (isUniqueViolation(error)) {
+      const racedId = await findExisting()
+      if (racedId) return racedId
+    }
     console.error('Error creating conversation for contact send:', error.message)
     return null
   }

@@ -1,8 +1,23 @@
 "use client";
 
+// ============================================================
+// /reset-password — the form the password-reset email leads to.
+//
+// The emailed link lands on /auth/callback, which exchanges it for a
+// session and 303s here. So on arrival the visitor either has a
+// recovery session (show the form) or doesn't (the link was spent,
+// expired, or opened in a browser without the PKCE verifier cookie —
+// say so, with a way to request a new one). Bouncing to /login with
+// no explanation was the locked-out experience issue #592 describes.
+//
+// Not gated by the middleware on purpose: the "expired" state must be
+// reachable signed-out, and a signed-in visitor must not be redirected
+// away from the very page they need.
+// ============================================================
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,32 +29,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { KeyRound, AlertCircle, ArrowLeft } from "lucide-react";
+import { CheckCircle, KeyRound, Loader2, MailX } from "lucide-react";
 
-/** Supabase rejects anything shorter; saying so up front beats a round trip. */
-const MIN_LENGTH = 8;
+type Status = "checking" | "ready" | "expired" | "done";
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
+  const t = useTranslations("ResetPasswordPage");
   const supabase = createClient();
 
-  // The recovery session is established by /auth/callback before we get
-  // here. Until we've confirmed it exists there is nothing worth showing:
-  // rendering the form first would invite someone to type a new password
-  // and only then be told the link had expired.
-  const [checking, setChecking] = useState(true);
-  const [hasSession, setHasSession] = useState(false);
+  const [status, setStatus] = useState<Status>("checking");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    supabase.auth.getUser().then(({ data }) => {
-      if (cancelled) return;
-      setHasSession(Boolean(data.user));
-      setChecking(false);
+    // The callback wrote the session cookies server-side; the browser
+    // client reads them here. No user → the link didn't yield a session.
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!cancelled) setStatus(user ? "ready" : "expired");
     });
     return () => {
       cancelled = true;
@@ -50,66 +59,102 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < MIN_LENGTH) {
-      setError(`Password must be at least ${MIN_LENGTH} characters`);
+    if (password !== confirmPassword) {
+      setError(t("passwordsMismatch"));
       return;
     }
-    if (password !== confirm) {
-      setError("Passwords don't match");
+    // Same floor as /signup.
+    if (password.length < 6) {
+      setError(t("passwordTooShort"));
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     const { error } = await supabase.auth.updateUser({ password });
+    setSaving(false);
+
     if (error) {
       setError(error.message);
-      setLoading(false);
       return;
     }
-
-    // The recovery session is already a full session, so there is no second
-    // sign-in to ask for — send them straight in.
-    router.push("/dashboard");
-    router.refresh();
+    setStatus("done");
   };
 
-  if (checking) {
+  if (status === "checking") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-sm text-muted-foreground">Checking your link...</p>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("checking")}
+        </div>
       </div>
     );
   }
 
-  if (!hasSession) {
+  if (status === "expired") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md border-border bg-card">
           <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
-              <AlertCircle className="h-6 w-6 text-red-400" />
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
+              <MailX className="h-6 w-6 text-amber-400" />
             </div>
             <CardTitle className="text-xl text-foreground">
-              This link has expired
+              {t("expiredTitle")}
             </CardTitle>
             <CardDescription className="text-muted-foreground">
-              Reset links work once and time out. Request a new one and it&apos;ll
-              arrive in a moment.
+              {t("expiredDesc")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Link href="/forgot-password">
+              <Button className="h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                {t("requestNewLink")}
+              </Button>
+            </Link>
+            <Link href="/login">
+              <Button
+                variant="outline"
+                className="w-full border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                {t("backToSignIn")}
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (status === "done") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <Card className="w-full max-w-md border-border bg-card">
+          <CardHeader className="items-center text-center">
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <CheckCircle className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-xl text-foreground">
+              {t("successTitle")}
+            </CardTitle>
+            <CardDescription className="text-muted-foreground">
+              {t("successDesc")}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/forgot-password">
-              <Button className="h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                Send a new link
-              </Button>
-            </Link>
-            <Link
-              href="/login"
-              className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            <Button
+              className="h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => {
+                // Full-page navigation, like /login: the middleware
+                // gating /dashboard must see the session cookies on a
+                // fresh top-level request, which a soft router.push
+                // can race (issue #365).
+                // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- deliberate full reload so the auth cookies reach the middleware
+                window.location.href = "/dashboard";
+              }}
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back to sign in
-            </Link>
+              {t("continueToDashboard")}
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -123,11 +168,9 @@ export default function ResetPasswordPage() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
             <KeyRound className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-xl text-foreground">
-            Choose a new password
-          </CardTitle>
+          <CardTitle className="text-xl text-foreground">{t("title")}</CardTitle>
           <CardDescription className="text-muted-foreground">
-            You&apos;ll be signed in as soon as you save it
+            {t("desc")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -140,13 +183,13 @@ export default function ResetPasswordPage() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="password" className="text-muted-foreground">
-                New password
+                {t("passwordLabel")}
               </Label>
               <Input
                 id="password"
                 type="password"
                 autoComplete="new-password"
-                placeholder={`At least ${MIN_LENGTH} characters`}
+                placeholder={t("passwordPlaceholder")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -155,15 +198,16 @@ export default function ResetPasswordPage() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="confirm" className="text-muted-foreground">
-                Confirm password
+              <Label htmlFor="confirmPassword" className="text-muted-foreground">
+                {t("confirmPasswordLabel")}
               </Label>
               <Input
-                id="confirm"
+                id="confirmPassword"
                 type="password"
                 autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                placeholder={t("confirmPasswordPlaceholder")}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
@@ -171,10 +215,10 @@ export default function ResetPasswordPage() {
 
             <Button
               type="submit"
-              disabled={loading}
+              disabled={saving}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Saving..." : "Save password"}
+              {saving ? t("saving") : t("submit")}
             </Button>
           </form>
         </CardContent>

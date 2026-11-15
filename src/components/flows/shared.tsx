@@ -63,8 +63,10 @@ export interface BuilderNode {
 }
 
 // ============================================================
-// Per-node-type metadata used to render icons + labels everywhere
-// the user sees a node summary.
+// Per-node-type metadata used to render icons + colours everywhere
+// the user sees a node summary. The user-visible label and blurb live
+// in the message catalogue (`Flows.builder.nodes.<type>` /
+// `Flows.builder.categories.<id>`), not here.
 // ============================================================
 
 // ------------------------------------------------------------
@@ -79,91 +81,80 @@ export interface BuilderNode {
 
 export type NodeCategory = 'messaging' | 'logic' | 'flow';
 
-/** Category labels + the order they render in the add-step menu. */
-export const NODE_CATEGORIES: { id: NodeCategory; label: string }[] = [
-  { id: 'messaging', label: 'Messaging' },
-  { id: 'logic', label: 'Logic & data' },
-  { id: 'flow', label: 'Flow control' },
-];
+/** The order categories render in the add-step menu. */
+export const NODE_CATEGORIES: NodeCategory[] = ['messaging', 'logic', 'flow'];
 
 export const NODE_META: Record<
   NodeType,
   {
-    label: string;
+    /** English seed for the auto-generated node_key (`slugify(slugSeed)`).
+     *  Deliberately NOT translated: node keys are stable identifiers that
+     *  surface in analytics and the runner, so they must not change with
+     *  the UI locale. */
+    slugSeed: string;
     icon: typeof Workflow;
     color: string;
-    blurb: string;
     category: NodeCategory;
   }
 > = {
   start: {
-    label: 'Start',
+    slugSeed: 'Start',
     icon: PlayCircle,
     color: 'text-emerald-400',
-    blurb: 'Entry point of the flow',
     category: 'flow',
   },
   send_message: {
-    label: 'Send message',
+    slugSeed: 'Send message',
     icon: MessageCircle,
     color: 'text-sky-400',
-    blurb: 'Sends a WhatsApp text message',
     category: 'messaging',
   },
   send_buttons: {
-    label: 'Send buttons',
+    slugSeed: 'Send buttons',
     icon: ListChecks,
     color: 'text-primary',
-    blurb: 'Sends quick-reply buttons',
     category: 'messaging',
   },
   send_list: {
-    label: 'Send list',
+    slugSeed: 'Send list',
     icon: ListPlus,
     color: 'text-indigo-400',
-    blurb: 'Sends a tappable list of options',
     category: 'messaging',
   },
   send_media: {
-    label: 'Send media',
+    slugSeed: 'Send media',
     icon: Paperclip,
     color: 'text-cyan-400',
-    blurb: 'Sends an image, video, or document',
     category: 'messaging',
   },
   collect_input: {
-    label: 'Collect input',
+    slugSeed: 'Collect input',
     icon: Inbox,
     color: 'text-teal-400',
-    blurb: 'Asks a question, saves the reply',
     category: 'logic',
   },
   condition: {
-    label: 'If / else',
+    slugSeed: 'If / else',
     icon: GitFork,
     color: 'text-fuchsia-400',
-    blurb: 'Branches on a rule',
     category: 'logic',
   },
   set_tag: {
-    label: 'Tag contact',
+    slugSeed: 'Tag contact',
     icon: Tag,
     color: 'text-pink-400',
-    blurb: 'Adds or removes a contact tag',
     category: 'logic',
   },
   handoff: {
-    label: 'Handoff to agent',
+    slugSeed: 'Handoff to agent',
     icon: UserPlus,
     color: 'text-amber-400',
-    blurb: 'Hands the conversation to a human',
     category: 'flow',
   },
   end: {
-    label: 'End',
+    slugSeed: 'End',
     icon: Flag,
     color: 'text-muted-foreground',
-    blurb: 'Ends the flow',
     category: 'flow',
   },
 };
@@ -176,10 +167,9 @@ export const NODE_META: Record<
  */
 export function groupNodeTypesByCategory(
   types: NodeType[]
-): { id: NodeCategory; label: string; types: NodeType[] }[] {
-  return NODE_CATEGORIES.map(({ id, label }) => ({
+): { id: NodeCategory; types: NodeType[] }[] {
+  return NODE_CATEGORIES.map((id) => ({
     id,
-    label,
     types: types.filter((t) => NODE_META[t].category === id),
   })).filter((group) => group.types.length > 0);
 }
@@ -305,7 +295,10 @@ export function truncate(s: string, max = 80): string {
   return clean.slice(0, max - 1) + '…';
 }
 
-export function summarizeNode(node: BuilderNode): string | null {
+export function summarizeNode(
+  node: BuilderNode,
+  t?: (key: string, values?: Record<string, string | number>) => string
+): string | null {
   const cfg = node.config;
   switch (node.node_type) {
     case 'start':
@@ -342,11 +335,13 @@ export function summarizeNode(node: BuilderNode): string | null {
       }, 0);
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${rowCount} option${rowCount === 1 ? '' : 's'}`
+          ? `${truncate(text, 50)} · ${t ? t('options', { count: rowCount }) : `${rowCount} option${rowCount === 1 ? '' : 's'}`}`
           : truncate(text);
       }
       return rowCount > 0
-        ? `${rowCount} option${rowCount === 1 ? '' : 's'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`
+        ? t
+          ? t('optionsAcrossSections', { rowCount, sectionCount: sections.length })
+          : `${rowCount} option${rowCount === 1 ? '' : 's'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`
         : null;
     }
     case 'send_media': {
@@ -356,9 +351,9 @@ export function summarizeNode(node: BuilderNode): string | null {
       const url = typeof cfg.media_url === 'string' ? cfg.media_url : '';
       const caption = typeof cfg.caption === 'string' ? cfg.caption : '';
       const label = mediaType
-        ? mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
-        : 'Media';
-      if (!url) return `${label} (no file uploaded)`;
+        ? t ? t(mediaType) || (mediaType.charAt(0).toUpperCase() + mediaType.slice(1)) : mediaType.charAt(0).toUpperCase() + mediaType.slice(1)
+        : t ? t('media') : 'Media';
+      if (!url) return t ? t('noFile', { label }) : `${label} (no file uploaded)`;
       const name = filename || url.split('/').pop() || 'file';
       return caption
         ? `${label}: ${truncate(name, 30)} · ${truncate(caption, 40)}`
@@ -386,17 +381,17 @@ export function summarizeNode(node: BuilderNode): string | null {
             : 'var';
       const subjectStr =
         subject === 'tag'
-          ? `has tag ${truncate(subjectKey, 24)}`
+          ? t ? t('hasTag', { tag: truncate(subjectKey, 24) }) : `has tag ${truncate(subjectKey, 24)}`
           : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === 'equals'
           ? '=='
           : cfg.operator === 'contains'
-            ? 'contains'
+            ? t ? t('opContains') : 'contains'
             : cfg.operator === 'present'
-              ? 'exists'
+              ? t ? t('opExists') : 'exists'
               : cfg.operator === 'absent'
-                ? 'missing'
+                ? t ? t('opMissing') : 'missing'
                 : '';
       const value = typeof cfg.value === 'string' ? cfg.value : '';
       const valStr =
@@ -406,14 +401,14 @@ export function summarizeNode(node: BuilderNode): string | null {
       return subject === 'tag' ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
     case 'set_tag': {
-      const mode = cfg.mode === 'remove' ? 'Remove' : 'Add';
+      const mode = cfg.mode === 'remove' ? (t ? t('modeRemove') : 'Remove') : (t ? t('modeAdd') : 'Add');
       const tagId = typeof cfg.tag_id === 'string' ? cfg.tag_id : '';
       // No tag name available without an async lookup here; show a
       // short prefix of the UUID so users can disambiguate between
       // multiple set_tag nodes at a glance.
       return tagId
-        ? `${mode} tag ${tagId.slice(0, 8)}…`
-        : `${mode} tag (none picked)`;
+        ? t ? t('tagPicked', { mode, tag: tagId.slice(0, 8) }) : `${mode} tag ${tagId.slice(0, 8)}…`
+        : t ? t('tagNone', { mode }) : `${mode} tag (none picked)`;
     }
     case 'handoff': {
       const note = typeof cfg.note === 'string' ? cfg.note : '';

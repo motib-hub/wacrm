@@ -33,6 +33,9 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import { BRAND } from "@/lib/branding";
+import { getT } from "@/lib/i18n/translate";
+
+const t = getT("Api");
 
 // Resolve the base URL we publish invite links under.
 //
@@ -154,7 +157,7 @@ export async function GET() {
     if (error) {
       console.error("[GET /api/account/invitations] fetch error:", error);
       return NextResponse.json(
-        { error: "Failed to load invitations" },
+        { error: t('account.invitations.loadFailed') },
         { status: 500 },
       );
     }
@@ -189,7 +192,7 @@ export async function POST(request: Request) {
       // here gives a clearer 400 than the eventual constraint
       // violation surfaced as a 500.
       return NextResponse.json(
-        { error: "'role' must be one of admin, agent, viewer" },
+        { error: t('account.invitations.roleInvalid') },
         { status: 400 },
       );
     }
@@ -208,7 +211,7 @@ export async function POST(request: Request) {
       const trimmed = body.label.trim();
       if (trimmed.length > MAX_LABEL_LEN) {
         return NextResponse.json(
-          { error: `Label must be ${MAX_LABEL_LEN} characters or fewer` },
+          { error: t('account.invitations.labelTooLong', { max: MAX_LABEL_LEN }) },
           { status: 400 },
         );
       }
@@ -233,7 +236,7 @@ export async function POST(request: Request) {
     if (error || !data) {
       console.error("[POST /api/account/invitations] insert error:", error);
       return NextResponse.json(
-        { error: "Failed to create invitation" },
+        { error: t('account.invitations.createFailed') },
         { status: 500 },
       );
     }

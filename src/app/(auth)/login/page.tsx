@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,37 +30,27 @@ export default function LoginPage() {
   );
 }
 
-/**
- * Turns the raw reason from /auth/callback into something a person can act
- * on. Supabase's own wording ("invalid flow state, no valid flow state
- * found") describes the PKCE verifier, not what the visitor did wrong.
- */
-function linkError(raw: string | null): string | null {
-  if (!raw) return null;
-  if (raw === "invalid_link" || raw.includes("flow state")) {
-    return "That link can't be used here. Open it in the browser you requested it from, or ask for a new one.";
-  }
-  return "That link has expired or was already used. Request a new one below.";
-}
-
 function LoginPageInner() {
   const searchParams = useSearchParams();
   // Forwarded from `/join/<token>` when the visitor already has an
   // account. After a successful sign-in we send them to the join
   // page to accept rather than to /dashboard.
   const inviteToken = searchParams.get("invite");
+  const t = useTranslations("LoginPage");
+  // Set by /auth/callback when an emailed link (confirmation, password
+  // reset) could not be turned into a session — see src/lib/auth/callback.ts.
+  const linkError = searchParams.get("error");
+  const linkErrorMessage =
+    linkError === "link_expired"
+      ? t("linkExpired")
+      : linkError === "link_invalid"
+        ? t("linkInvalid")
+        : null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // `/auth/callback` sends people here with `?error=` when a mailed link
-  // can't be redeemed — expired, already used, or opened in a different
-  // browser than the one that asked for it. Showing why beats dropping
-  // them on a blank sign-in form that looks like nothing happened.
-  const [error, setError] = useState<string | null>(
-    linkError(searchParams.get("error"))
-  );
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
   const supabase = createClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -78,11 +69,18 @@ function LoginPageInner() {
       return;
     }
 
-    if (inviteToken) {
-      router.push(`/join/${encodeURIComponent(inviteToken)}`);
-    } else {
-      router.push("/dashboard");
-    }
+    // Full-page navigation (not router.push) so the browser issues a
+    // fresh top-level request that carries the just-written Supabase
+    // auth cookies to the middleware gating /dashboard. A soft
+    // client-side navigation can reach the protected route before the
+    // server observes the new session, so the middleware bounces it
+    // back to /login — which looks like the page "just refreshing"
+    // instead of signing in (issue #365). Mirrors the deliberate full
+    // reload the invite-accept flow already uses in join/[token].
+    const destination = inviteToken
+      ? `/join/${encodeURIComponent(inviteToken)}`
+      : "/dashboard";
+    window.location.href = destination;
   };
 
   return (
@@ -97,16 +95,21 @@ function LoginPageInner() {
             )}
           </div>
           <CardTitle className="text-xl text-foreground">
-            {inviteToken ? "Sign in to accept" : "Welcome back"}
+            {inviteToken ? t('titleAccept') : t('titleWelcome')}
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             {inviteToken
-              ? "Sign in and we'll take you to the invitation."
-              : "Sign in to your account"}
+              ? t('descAccept')
+              : t('descWelcome')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            {linkErrorMessage && !error && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+                {linkErrorMessage}
+              </div>
+            )}
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                 {error}
@@ -115,12 +118,12 @@ function LoginPageInner() {
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="email" className="text-muted-foreground">
-                Email
+                {t('emailLabel')}
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder={t('emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -129,26 +132,25 @@ function LoginPageInner() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-muted-foreground">
-                  Password
-                </Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <Label htmlFor="password" className="text-muted-foreground">
+                {t('passwordLabel')}
+              </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder={t('passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="border-border bg-muted text-foreground placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/20"
               />
+              {/* Below the input so Tab goes email -> password -> link. */}
+              <Link
+                href="/forgot-password"
+                className="self-end text-sm text-primary hover:text-primary/80"
+              >
+                {t('forgotPassword')}
+              </Link>
             </div>
 
             <Button
@@ -156,12 +158,12 @@ function LoginPageInner() {
               disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
 
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don&apos;t have an account?{" "}
+            {t('noAccount')}{" "}
             <Link
               href={
                 inviteToken
@@ -170,7 +172,7 @@ function LoginPageInner() {
               }
               className="text-primary hover:text-primary/80"
             >
-              Create account
+              {t('createAccount')}
             </Link>
           </p>
         </CardContent>

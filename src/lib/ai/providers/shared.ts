@@ -1,4 +1,7 @@
-import { AiError, type ChatMessage } from '../types'
+import { AiError, type AiUsage, type ChatMessage } from '../types'
+import { getT } from '@/lib/i18n/translate'
+
+const t = getT('LibErrors')
 
 // ============================================================
 // Bits shared by the OpenAI + Anthropic adapters.
@@ -10,18 +13,44 @@ export interface ProviderArgs {
   systemPrompt: string
   messages: ChatMessage[]
   timeoutMs: number
+  /** Custom OpenAI-compatible base URL; omitted for native providers. */
+  baseUrl?: string | null
+}
+
+/**
+ * Coerce a provider's usage block into our normalized `AiUsage`, tolerant
+ * of missing/partial fields (providers differ and older API versions may
+ * omit counts). Returns null when there's nothing usable, so logging can
+ * distinguish "no usage reported" from "zero tokens". `total` falls back
+ * to prompt + completion when the provider doesn't send it (Anthropic).
+ */
+export function normalizeUsage(raw: {
+  prompt?: unknown
+  completion?: unknown
+  total?: unknown
+}): AiUsage | null {
+  const num = (v: unknown): number =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0
+  const promptTokens = num(raw.prompt)
+  const completionTokens = num(raw.completion)
+  const total = num(raw.total)
+  const totalTokens = total > 0 ? total : promptTokens + completionTokens
+  if (promptTokens === 0 && completionTokens === 0 && totalTokens === 0) {
+    return null
+  }
+  return { promptTokens, completionTokens, totalTokens }
 }
 
 /** Map a fetch rejection (timeout / DNS / offline) to a typed AiError. */
 export function toNetworkError(err: unknown): AiError {
   if (err instanceof DOMException && err.name === 'TimeoutError') {
-    return new AiError('The AI provider took too long to respond.', {
+    return new AiError(t('ai.timeout'), {
       code: 'timeout',
       status: 504,
     })
   }
   const msg = err instanceof Error ? err.message : String(err)
-  return new AiError(`Could not reach the AI provider: ${msg}`, {
+  return new AiError(t('ai.unreachable', { message: msg }), {
     code: 'network_error',
     status: 502,
   })
@@ -53,10 +82,10 @@ export async function providerHttpError(
         : 'provider_error'
   const base =
     code === 'invalid_key'
-      ? `${provider} rejected the API key`
+      ? t('ai.invalidKey', { provider })
       : code === 'rate_limited'
-        ? `${provider} rate limit reached`
-        : `${provider} API error (${status})`
+        ? t('ai.rateLimited', { provider })
+        : t('ai.apiError', { provider, status: String(status) })
 
   return new AiError(detail ? `${base}: ${detail}` : base, {
     code,

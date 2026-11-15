@@ -31,6 +31,8 @@
 //               "contact_id", "contact_created" } }
 // ============================================================
 
+import { after } from 'next/server';
+
 import { requireApiKey } from '@/lib/auth/api-context';
 import { ok, fail, toApiErrorResponse } from '@/lib/api/v1/respond';
 import { resolveConversationByPhone } from '@/lib/whatsapp/resolve-conversation';
@@ -39,6 +41,8 @@ import {
   validateSendMessageParams,
   SendMessageError,
 } from '@/lib/whatsapp/send-message';
+import type { InteractiveMessagePayload } from '@/lib/whatsapp/interactive';
+import { dispatchWebhookEvent } from '@/lib/webhooks/deliver';
 
 export async function POST(request: Request) {
   try {
@@ -79,11 +83,19 @@ export async function POST(request: Request) {
     // Validate the message shape BEFORE resolveConversationByPhone
     // finds-or-creates a contact + conversation, so a bad payload 400s
     // without leaving an orphan contact/conversation behind.
+    // Validated by `validateSendMessageParams` below; the cast just bridges
+    // the untyped JSON body to the send-core param type.
+    const interactivePayload =
+      body.interactive_payload && typeof body.interactive_payload === 'object'
+        ? (body.interactive_payload as InteractiveMessagePayload)
+        : null;
+
     validateSendMessageParams({
       messageType: type,
       contentText: typeof body.text === 'string' ? body.text : null,
       mediaUrl: typeof body.media_url === 'string' ? body.media_url : null,
       templateName: typeof template?.name === 'string' ? template.name : null,
+      interactivePayload,
     });
 
     // Find-or-create the conversation for this phone, then send. Both
@@ -95,6 +107,15 @@ export async function POST(request: Request) {
       to,
       typeof body.name === 'string' ? body.name : null
     );
+
+    if (resolved.conversationCreated) {
+      after(() =>
+        dispatchWebhookEvent(ctx.supabase, ctx.accountId, 'conversation.created', {
+          conversation_id: resolved.conversationId,
+          contact_id: resolved.contactId,
+        })
+      );
+    }
 
     const result = await sendMessageToConversation(
       ctx.supabase,
@@ -110,6 +131,7 @@ export async function POST(request: Request) {
           typeof template?.language === 'string' ? template.language : null,
         templateParams,
         templateMessageParams,
+        interactivePayload,
         replyToMessageId:
           typeof body.reply_to_message_id === 'string'
             ? body.reply_to_message_id

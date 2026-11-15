@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import type { AutomationTriggerType } from '@/types'
 
 /**
@@ -9,13 +10,20 @@ import type { AutomationTriggerType } from '@/types'
  * account_id and dispatch over the account's automations.
  */
 export async function POST(request: Request) {
+  // Firing automations sends outbound WhatsApp — a write action. Require
+  // at least `agent`; a viewer must not be able to trigger sends.
   let accountId: string
+  let userId: string
   try {
-    const ctx = await getCurrentAccount()
+    const ctx = await requireRole('agent')
     accountId = ctx.accountId
+    userId = ctx.userId
   } catch (err) {
     return toErrorResponse(err)
   }
+
+  const limit = checkRateLimit(`automation-trigger:${userId}`, RATE_LIMITS.automationTrigger)
+  if (!limit.success) return rateLimitResponse(limit)
 
   const body = await request.json().catch(() => null)
   if (!body?.trigger_type) {

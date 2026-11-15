@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   const pageId = body?.entry?.[0]?.id ?? null
   const accountSecret = await lookupAppSecretByPageOrIgId(supabaseAdmin(), pageId)
 
-  if (!verifyMetaWebhookSignature(rawBody, signature, [accountSecret, process.env.META_APP_SECRET])) {
+  if (!verifyMetaWebhookSignature(rawBody, signature, [accountSecret])) {
     console.warn('[lead-ads webhook] rejected request with invalid signature')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }

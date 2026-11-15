@@ -19,6 +19,9 @@ import {
   X,
   Loader2,
   Sparkles,
+  Plus,
+  MessageSquareDashed,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -28,6 +31,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useCan } from "@/hooks/use-can";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -37,6 +47,14 @@ import {
   MEDIA_MAX_BYTES_BY_KIND,
 } from "@/lib/storage/upload-media";
 import { ReplyQuote } from "./reply-quote";
+import { useTranslations } from "next-intl";
+import {
+  InteractiveBuilder,
+  blankButtonsPayload,
+} from "@/components/interactive/interactive-builder";
+import { validateInteractivePayload } from "@/lib/whatsapp/interactive";
+import type { InteractiveMessagePayload, QuickReply } from "@/types";
+import { QuickReplyPicker } from "./quick-reply-picker";
 
 /** Media content types an agent can send from the composer. */
 export type ComposerMediaKind = "image" | "video" | "document" | "audio";
@@ -96,6 +114,7 @@ interface MessageComposerProps {
   sessionExpired: boolean;
   onSend: (text: string, replyToId?: string) => void;
   onSendMedia: (payload: SendMediaPayload) => void;
+  onSendInteractive: (payload: InteractiveMessagePayload, replyToId?: string) => void;
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
@@ -117,14 +136,39 @@ export function MessageComposer({
   sessionExpired,
   onSend,
   onSendMedia,
+  onSendInteractive,
   onOpenTemplates,
   replyTo,
   onClearReply,
 }: MessageComposerProps) {
+  const t = useTranslations("Inbox.composer");
+  const tGate = useTranslations("GatedButton");
+
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Enter-to-send only on devices with a mouse/keyboard (fine pointer).
+  // On touch devices (phones) Enter inserts a newline and the Send button
+  // is the only way to send — there's no practical Shift+Enter on a phone,
+  // so intercepting Enter there blocks multi-line messages.
+  const [enterSends, setEnterSends] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: fine)");
+    const apply = () => setEnterSends(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
+  // Interactive-message builder dialog + quick-reply picker.
+  const [interactiveOpen, setInteractiveOpen] = useState(false);
+  const [interactivePayload, setInteractivePayload] =
+    useState<InteractiveMessagePayload>(blankButtonsPayload);
+  const [savingQuickReply, setSavingQuickReply] = useState(false);
+  const [quickReplyOpen, setQuickReplyOpen] = useState(false);
 
   // Media attachment state. `draft` holds an uploaded-but-not-yet-sent
   // attachment; `busy` covers the upload/transcode window.
@@ -209,12 +253,12 @@ export function MessageComposer({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && enterSends) {
         e.preventDefault();
         handleSend();
       }
     },
-    [handleSend]
+    [handleSend, enterSends]
   );
 
   const handleChange = useCallback(
@@ -240,15 +284,15 @@ export function MessageComposer({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.code === "ai_not_configured") {
-          toast.error("AI isn't set up yet — enable it in Settings → AI Assistant.");
+          toast.error(t("aiNotConfigured"));
         } else {
-          toast.error(data.error ?? "Couldn't draft a reply.");
+          toast.error(data.error ?? t("draftFailed"));
         }
         return;
       }
       const draftText = typeof data.draft === "string" ? data.draft.trim() : "";
       if (!draftText) {
-        toast.error("The assistant didn't return a reply.");
+        toast.error(t("draftEmpty"));
         return;
       }
       setText(draftText);
@@ -263,11 +307,94 @@ export function MessageComposer({
         }
       });
     } catch {
-      toast.error("Couldn't reach the AI assistant.");
+      toast.error(t("aiUnreachable"));
     } finally {
       setDrafting(false);
     }
-  }, [drafting, conversationId, adjustHeight]);
+  }, [drafting, conversationId, adjustHeight, t]);
+
+  // ---- Interactive message + quick replies --------------------------
+
+  const openInteractiveBuilder = useCallback(
+    (seed?: InteractiveMessagePayload) => {
+      setInteractivePayload(seed ?? blankButtonsPayload());
+      setInteractiveOpen(true);
+    },
+    [],
+  );
+
+  const sendInteractive = useCallback(() => {
+    const result = validateInteractivePayload(interactivePayload);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    onSendInteractive(interactivePayload, replyTo?.id);
+    setInteractiveOpen(false);
+    onClearReply?.();
+  }, [interactivePayload, onSendInteractive, replyTo?.id, onClearReply]);
+
+  // Persist the current builder payload as a reusable interactive snippet.
+  const saveAsQuickReply = useCallback(async () => {
+    const result = validateInteractivePayload(interactivePayload);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const title = window
+      .prompt(t("quickReplyNamePrompt"))
+      ?.trim();
+    if (!title) return;
+    setSavingQuickReply(true);
+    try {
+      const res = await fetch("/api/quick-replies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          kind: "interactive",
+          interactive_payload: interactivePayload,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? t("quickReplySaveError"));
+        return;
+      }
+      toast.success(t("quickReplySaved"));
+    } catch {
+      toast.error(t("quickReplySaveError"));
+    } finally {
+      setSavingQuickReply(false);
+    }
+  }, [interactivePayload, t]);
+
+  // A picked quick reply: text fills the composer; interactive opens the
+  // builder pre-filled so the agent can tweak before sending.
+  const handlePickQuickReply = useCallback(
+    (qr: QuickReply) => {
+      setQuickReplyOpen(false);
+      if (qr.kind === "interactive" && qr.interactive_payload) {
+        openInteractiveBuilder(qr.interactive_payload);
+        return;
+      }
+      const body = qr.content_text ?? "";
+      // Separate the snippet from any existing draft with a newline so the
+      // words don't run together ("Thanks" + "we'll…" → "Thankswe'll…").
+      setText((prev) =>
+        prev && !/\s$/.test(prev) ? `${prev}\n${body}` : `${prev}${body}`,
+      );
+      requestAnimationFrame(() => {
+        adjustHeight();
+        const el = textareaRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      });
+    },
+    [openInteractiveBuilder, adjustHeight],
+  );
 
   // Upload a captured file to chat-media and stage it as a draft.
   const stageUpload = useCallback(
@@ -278,9 +405,11 @@ export function MessageComposer({
       const max = MEDIA_MAX_BYTES_BY_KIND[kind];
       if (file.size > max) {
         toast.error(
-          `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — ${kind} limit is ${Math.round(
-            max / 1024 / 1024,
-          )} MB.`,
+          t("fileTooLarge", {
+            size: (file.size / 1024 / 1024).toFixed(1),
+            kind: t(`mediaKind.${kind}`),
+            max: Math.round(max / 1024 / 1024),
+          }),
         );
         return;
       }
@@ -291,12 +420,12 @@ export function MessageComposer({
         removeStaged(draftRef.current?.path);
         setDraft({ kind, mediaUrl: publicUrl, path, filename: file.name, caption: "" });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed.");
+        toast.error(err instanceof Error ? err.message : t("uploadFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [removeStaged],
+    [removeStaged, t],
   );
 
   const handlePicked = useCallback(
@@ -319,7 +448,7 @@ export function MessageComposer({
       });
       if (file.size === 0) return; // cancelled / empty take
       if (file.size > MEDIA_MAX_BYTES_BY_KIND.audio) {
-        toast.error("Recording is too long (over 16 MB).");
+        toast.error(t("recordingTooLong"));
         return;
       }
       setBusy(true);
@@ -328,18 +457,18 @@ export function MessageComposer({
         removeStaged(draftRef.current?.path);
         setDraft({ kind: "audio", mediaUrl: publicUrl, path, filename: file.name, caption: "" });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Upload failed.");
+        toast.error(err instanceof Error ? err.message : t("uploadFailed"));
       } finally {
         setBusy(false);
       }
     },
-    [removeStaged],
+    [removeStaged, t],
   );
 
   const startRecording = useCallback(async () => {
     if (inputsDisabled || busy || recording) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === "undefined") {
-      toast.error("Voice recording isn't supported in this browser.");
+      toast.error(t("recordingUnsupported"));
       return;
     }
     try {
@@ -366,9 +495,9 @@ export function MessageComposer({
     } catch {
       void recorderRef.current?.stop().catch(() => {});
       recorderRef.current = null;
-      toast.error("Microphone access denied or unavailable.");
+      toast.error(t("microphoneDenied"));
     }
-  }, [inputsDisabled, busy, recording, finalizeRecording]);
+  }, [inputsDisabled, busy, recording, finalizeRecording, t]);
 
   const stopRecording = useCallback(() => {
     clearTimer();
@@ -437,7 +566,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            24-hour session expired. Use a template to re-engage.
+            {t("sessionExpiredHint")}
           </p>
           <Button
             variant="ghost"
@@ -446,7 +575,7 @@ export function MessageComposer({
             onClick={onOpenTemplates}
           >
             <LayoutTemplate className="mr-1 h-3 w-3" />
-            Templates
+            {t("templates")}
           </Button>
         </div>
       )}
@@ -491,43 +620,47 @@ export function MessageComposer({
           onCaptionChange={setCaption}
           onDiscard={discardDraft}
           onSend={sendDraft}
+          t={t}
         />
       ) : recording ? (
         // Recording bar — replaces the composer while the mic is live.
         <div className="flex items-center gap-3 rounded-xl border border-border bg-muted px-4 py-2.5">
           <span className="flex h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
           <span className="flex-1 text-sm text-foreground">
-            Recording… {formatDuration(recordSeconds)} /{" "}
-            {formatDuration(MAX_RECORDING_SECONDS)}
+            {t("recording", { current: formatDuration(recordSeconds), max: formatDuration(MAX_RECORDING_SECONDS) })}
           </span>
           <button
             type="button"
             onClick={cancelRecording}
             className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-card hover:text-foreground"
           >
-            Cancel
+            {t("cancel")}
           </button>
           <Button
             size="sm"
             onClick={stopRecording}
             className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90"
-            title="Stop and attach"
+            title={t("stopAndAttach")}
           >
             <Square className="h-4 w-4" />
           </Button>
         </div>
       ) : (
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          {/* Action buttons. On mobile this group wraps to its own row
+              below the textarea (basis-full + order-2) so the input gets
+              the full width; on sm+ it sits inline before the textarea. */}
+          <div className="order-2 flex basis-full items-end gap-2 sm:order-1 sm:basis-auto">
           {/* Attach menu — photo / video / document / voice. */}
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={inputsDisabled || busy}
               title={
                 readOnly
-                  ? "Read-only — your role can't send messages"
+                  ? t("readOnlyTitle")
                   : inputsDisabled
                     ? undefined
-                    : "Attach media"
+                    : t("attachMedia")
               }
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -540,19 +673,47 @@ export function MessageComposer({
             <DropdownMenuContent align="start" className="border-border bg-popover">
               <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
                 <ImageIcon className="mr-2 h-4 w-4" />
-                Photo
+                {t("photo")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => videoInputRef.current?.click()}>
                 <Video className="mr-2 h-4 w-4" />
-                Video
+                {t("video")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => documentInputRef.current?.click()}>
                 <FileText className="mr-2 h-4 w-4" />
-                Document
+                {t("document")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => void startRecording()}>
                 <Mic className="mr-2 h-4 w-4" />
-                Voice note
+                {t("voiceNote")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* + menu — interactive messages + quick replies. Gated on the
+              24h window like free-form text (interactive requires it). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={inputsDisabled}
+              title={
+                readOnly
+                  ? t("readOnlyTitle")
+                  : inputsDisabled
+                    ? undefined
+                    : t("moreActions")
+              }
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="border-border bg-popover">
+              <DropdownMenuItem onClick={() => openInteractiveBuilder()}>
+                <MessageSquareDashed className="mr-2 h-4 w-4" />
+                {t("interactiveMessage")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setQuickReplyOpen(true)}>
+                <Zap className="mr-2 h-4 w-4" />
+                {t("quickReplies")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -561,8 +722,8 @@ export function MessageComposer({
             variant="ghost"
             size="sm"
             canAct={!readOnly}
-            gateReason="send messages"
-            title={readOnly ? undefined : "Send template"}
+            gateReason={tGate("reasons.sendMessages")}
+            title={readOnly ? undefined : t("sendTemplate")}
             className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
             onClick={onOpenTemplates}
           >
@@ -573,9 +734,9 @@ export function MessageComposer({
             variant="ghost"
             size="sm"
             canAct={!readOnly}
-            gateReason="send messages"
+            gateReason={tGate("reasons.sendMessages")}
             disabled={drafting}
-            title={readOnly ? undefined : "Draft a reply with AI"}
+            title={readOnly ? undefined : t("draftWithAI")}
             className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-primary"
             onClick={handleDraft}
           >
@@ -585,6 +746,7 @@ export function MessageComposer({
               <Sparkles className="h-4 w-4" />
             )}
           </GatedButton>
+          </div>
 
           <textarea
             ref={textareaRef}
@@ -593,19 +755,19 @@ export function MessageComposer({
             onKeyDown={handleKeyDown}
             placeholder={
               readOnly
-                ? "Read-only — viewers can browse but not reply"
+                ? t("readOnlyPlaceholder")
                 : sessionExpired
-                  ? "Session expired - use a template"
-                  : "Type a message... (Shift+Enter for new line)"
+                  ? t("sessionExpiredPlaceholder")
+                  : t("typeMessagePlaceholder")
             }
             disabled={sessionExpired || readOnly}
             rows={1}
             // Textarea keeps its own inline title — the GatedButton
             // wrapping pattern doesn't apply to non-button inputs.
             // The placeholder text also surfaces the read-only state.
-            title={readOnly ? "Read-only — your role can't send messages" : undefined}
+            title={readOnly ? t("readOnlyTitle") : undefined}
             className={cn(
-              "flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50",
+              "order-1 min-w-0 flex-1 resize-none rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50 sm:order-2",
               (sessionExpired || readOnly) && "cursor-not-allowed opacity-50"
             )}
           />
@@ -613,10 +775,10 @@ export function MessageComposer({
           <GatedButton
             size="sm"
             canAct={!readOnly}
-            gateReason="send messages"
+            gateReason={tGate("reasons.sendMessages")}
             disabled={!text.trim() || sessionExpired || sending}
             onClick={handleSend}
-            className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40"
+            className="order-1 h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary/90 disabled:opacity-40 sm:order-3"
           >
             <Send className="h-4 w-4" />
           </GatedButton>
@@ -627,10 +789,50 @@ export function MessageComposer({
           `items-end` buttons below the textarea. Indented to line up
           under the textarea left edge. */}
       {!draft && !recording && (
-        <p className="mt-1 pl-[5.5rem] text-[10px] text-muted-foreground">
-          Tap the ✨ to draft a reply with AI — you can edit it before sending
+        <p className="mt-1 pl-1 text-[10px] text-muted-foreground sm:pl-[5.5rem]">
+          {t("draftHint")}
         </p>
       )}
+
+      {/* Interactive-message builder dialog. */}
+      <Dialog open={interactiveOpen} onOpenChange={setInteractiveOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t("interactiveMessage")}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto">
+            <InteractiveBuilder
+              value={interactivePayload}
+              onChange={setInteractivePayload}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={savingQuickReply}
+              onClick={saveAsQuickReply}
+            >
+              {savingQuickReply ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="mr-1 h-4 w-4" />
+              )}
+              {t("saveAsQuickReply")}
+            </Button>
+            <Button onClick={sendInteractive}>
+              <Send className="mr-1 h-4 w-4" />
+              {t("send")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick-reply picker. */}
+      <QuickReplyPicker
+        open={quickReplyOpen}
+        onOpenChange={setQuickReplyOpen}
+        onPick={handlePickQuickReply}
+      />
     </div>
   );
 }
@@ -648,6 +850,7 @@ function MediaDraftPreview({
   onCaptionChange,
   onDiscard,
   onSend,
+  t,
 }: {
   draft: MediaDraft;
   busy: boolean;
@@ -655,7 +858,9 @@ function MediaDraftPreview({
   onCaptionChange: (caption: string) => void;
   onDiscard: () => void;
   onSend: () => void;
+  t: ReturnType<typeof useTranslations>;
 }) {
+  const tGate = useTranslations("GatedButton");
   return (
     <div className="rounded-xl border border-border bg-muted/40 p-3">
       <div className="flex items-start gap-3">
@@ -684,7 +889,7 @@ function MediaDraftPreview({
         <button
           type="button"
           onClick={onDiscard}
-          aria-label="Remove attachment"
+          aria-label={t("removeAttachment")}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <X className="h-4 w-4" />
@@ -703,14 +908,14 @@ function MediaDraftPreview({
                 onSend();
               }
             }}
-            placeholder="Add a caption…"
+            placeholder={t("addCaption")}
             className="flex-1 rounded-xl border border-border bg-muted px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-primary/50"
           />
         )}
         <GatedButton
           size="sm"
           canAct={!readOnly}
-          gateReason="send messages"
+          gateReason={tGate("reasons.sendMessages")}
           disabled={busy}
           onClick={onSend}
           className={cn(

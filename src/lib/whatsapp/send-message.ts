@@ -25,23 +25,36 @@ import {
   sendTextMessage,
   sendTemplateMessage,
   sendMediaMessage,
+  sendInteractiveButtons,
+  sendInteractiveList,
   type MediaKind,
 } from '@/lib/whatsapp/meta-api';
+import {
+  validateInteractivePayload,
+  interactivePayloadPreviewText,
+  type InteractiveMessagePayload,
+} from '@/lib/whatsapp/interactive';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import {
-  sanitizePhoneForMeta,
-  isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
 } from '@/lib/whatsapp/phone-utils';
+import { resolveContactSendTarget } from '@/lib/whatsapp/wa-identity';
+import { applyPendingMessageStatuses } from '@/lib/whatsapp/message-status-sync';
 import type { MessageTemplate } from '@/types';
-import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
+import {
+  resolveTemplateRow,
+  templateBodyParams,
+  templateContentText,
+  templateHeaderMediaUrl,
+} from '@/lib/whatsapp/template-body';
 
 export const MEDIA_KINDS = ['image', 'video', 'document', 'audio'] as const;
 export const VALID_MESSAGE_TYPES = [
   'text',
   'template',
+  'interactive',
   ...MEDIA_KINDS,
 ] as const;
 
@@ -73,7 +86,10 @@ export interface SendMessageParams {
   templateParams?: string[];
   /** Structured template params (header/body/buttons). */
   templateMessageParams?: unknown;
+  /** Structured payload for `messageType === 'interactive'`. */
+  interactivePayload?: InteractiveMessagePayload | null;
   replyToMessageId?: string | null;
+  senderId?: string | null;
 }
 
 export interface SendMessageResult {
@@ -103,8 +119,10 @@ export function validateSendMessageParams(params: {
   contentText?: string | null;
   mediaUrl?: string | null;
   templateName?: string | null;
+  interactivePayload?: InteractiveMessagePayload | null;
 }): void {
-  const { messageType, contentText, mediaUrl, templateName } = params;
+  const { messageType, contentText, mediaUrl, templateName, interactivePayload } =
+    params;
 
   if (!messageType) {
     throw new SendMessageError('bad_request', 'message_type is required', 400);
@@ -134,6 +152,15 @@ export function validateSendMessageParams(params: {
       'template_name is required for template messages',
       400
     );
+  }
+
+  // Interactive: validate the full structured payload against Meta's
+  // limits up front so a bad payload 400s before we touch Meta.
+  if (messageType === 'interactive') {
+    const result = validateInteractivePayload(interactivePayload);
+    if (!result.ok) {
+      throw new SendMessageError('bad_request', result.error, 400);
+    }
   }
 
   if (isMediaKind && !mediaUrl) {
@@ -172,8 +199,10 @@ export async function sendMessageToConversation(
     filename,
     templateName,
     templateLanguage,
+    senderId,
     templateParams,
     templateMessageParams,
+    interactivePayload,
     replyToMessageId,
   } = params;
 
@@ -185,7 +214,13 @@ export async function sendMessageToConversation(
     );
   }
 
-  validateSendMessageParams({ messageType, contentText, mediaUrl, templateName });
+  validateSendMessageParams({
+    messageType,
+    contentText,
+    mediaUrl,
+    templateName,
+    interactivePayload,
+  });
 
   const isMediaKind = (MEDIA_KINDS as readonly string[]).includes(messageType);
 
@@ -202,22 +237,26 @@ export async function sendMessageToConversation(
   }
 
   const contact = conversation.contact;
-  if (!contact?.phone) {
-    throw new SendMessageError(
-      'bad_request',
-      'Contact phone number not found',
-      400
-    );
-  }
 
-  const sanitizedPhone = sanitizePhoneForMeta(contact.phone);
-  if (!isValidE164(sanitizedPhone)) {
+  // A contact is addressable by phone number OR by business-scoped user
+  // ID. Meta withholds the phone number for a customer who has adopted
+  // a WhatsApp username, so those contacts carry only a BSUID and are
+  // reached through Meta's `recipient` field instead of `to` (issue
+  // #519). Phone stays preferred when we have one: only it supports the
+  // trunk-prefix variant retry below.
+  const resolvedTarget = resolveContactSendTarget(contact);
+  if (!resolvedTarget) {
     throw new SendMessageError(
       'bad_request',
-      'Invalid phone number format',
+      contact?.phone
+        ? 'Invalid phone number format'
+        : 'Contact has no phone number or WhatsApp user ID',
       400
     );
   }
+  const sendTarget = resolvedTarget.target;
+  const hasValidPhone = resolvedTarget.isPhone;
+  const sanitizedPhone = hasValidPhone ? sendTarget : '';
 
   // WhatsApp config, account-scoped.
   const { data: config, error: configError } = await db
@@ -280,25 +319,28 @@ export async function sendMessageToConversation(
     }
   }
 
-  // Template row (for header + button components). isMessageTemplate
-  // guards against a malformed local row crashing the send-builder.
+  // Template row — needed for the send-builder's header + button
+  // components AND for the body we persist. The lookup tolerates the
+  // en / en_US split so a caller that omits the language still resolves
+  // a row (see resolveTemplateRow).
   let templateRow: MessageTemplate | null = null;
+  let sendLanguage = templateLanguage || 'en_US';
   if (messageType === 'template' && templateName) {
-    const { data } = await db
-      .from('message_templates')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('name', templateName)
-      .eq('language', templateLanguage || 'en_US')
-      .maybeSingle();
-    if (data && !isMessageTemplate(data)) {
+    const resolved = await resolveTemplateRow(
+      db,
+      accountId,
+      templateName,
+      templateLanguage
+    );
+    if (resolved.malformed) {
       throw new SendMessageError(
         'template_malformed',
         'Template row is malformed locally — run "Sync from Meta" in Settings to repair it.',
         500
       );
     }
-    templateRow = data ?? null;
+    templateRow = resolved.row;
+    sendLanguage = resolved.language;
   }
 
   const attempt = async (phone: string): Promise<string> => {
@@ -308,7 +350,7 @@ export async function sendMessageToConversation(
         accessToken,
         to: phone,
         templateName: templateName!,
-        language: templateLanguage || 'en_US',
+        language: sendLanguage,
         template: templateRow ?? undefined,
         messageParams: templateMessageParams ?? undefined,
         params: templateParams || [],
@@ -329,6 +371,34 @@ export async function sendMessageToConversation(
       });
       return result.messageId;
     }
+    if (messageType === 'interactive') {
+      const p = interactivePayload!;
+      if (p.kind === 'buttons') {
+        const result = await sendInteractiveButtons({
+          phoneNumberId: config.phone_number_id,
+          accessToken,
+          to: phone,
+          bodyText: p.body,
+          headerText: p.header || undefined,
+          footerText: p.footer || undefined,
+          buttons: p.buttons,
+          contextMessageId,
+        });
+        return result.messageId;
+      }
+      const result = await sendInteractiveList({
+        phoneNumberId: config.phone_number_id,
+        accessToken,
+        to: phone,
+        bodyText: p.body,
+        buttonLabel: p.button_label,
+        headerText: p.header || undefined,
+        footerText: p.footer || undefined,
+        sections: p.sections,
+        contextMessageId,
+      });
+      return result.messageId;
+    }
     const result = await sendTextMessage({
       phoneNumberId: config.phone_number_id,
       accessToken,
@@ -343,9 +413,11 @@ export async function sendMessageToConversation(
   // with "recipient not in allowed list"; persist a working variant
   // back to the contact so the next send goes straight through.
   let waMessageId = '';
-  let workingPhone = sanitizedPhone;
+  let workingPhone = sendTarget;
   try {
-    const variants = phoneVariants(sanitizedPhone);
+    // Variants only make sense for a phone number — a BSUID is opaque
+    // and has exactly one correct form, so it gets a single attempt.
+    const variants = hasValidPhone ? phoneVariants(sanitizedPhone) : [sendTarget];
     let lastError: unknown = null;
 
     for (const variant of variants) {
@@ -374,7 +446,7 @@ export async function sendMessageToConversation(
     throw new SendMessageError('meta_error', `Meta API error: ${message}`, 502);
   }
 
-  if (workingPhone !== sanitizedPhone) {
+  if (hasValidPhone && workingPhone !== sanitizedPhone) {
     console.log(
       `[send-message] Auto-corrected contact phone: ${sanitizedPhone} → ${workingPhone}`
     );
@@ -386,15 +458,40 @@ export async function sendMessageToConversation(
 
   // Persist the sent message. Field names MUST match the messages
   // schema (see 001_initial_schema.sql).
+  // Interactive messages persist the body as content_text (so the
+  // conversation-list preview reads sensibly) plus the full structured
+  // payload so the thread can re-render the buttons / rows.
+  //
+  // Templates persist the *substituted* body. The composer pre-renders
+  // and posts it as contentText; every other caller (the public API,
+  // most importantly) sends none, and storing null there left the
+  // Inbox rendering an empty bubble — issue #483.
+  const persistedText =
+    messageType === 'interactive'
+      ? interactivePayload!.body
+      : messageType === 'template'
+        ? templateContentText(
+            templateRow,
+            templateBodyParams(templateParams, templateMessageParams),
+            contentText
+          )
+        : (contentText ?? null);
+
   const { data: messageRecord, error: msgError } = await db
     .from('messages')
     .insert({
       conversation_id: conversationId,
       sender_type: 'agent',
+      sender_id: senderId ?? null,
       content_type: messageType,
-      content_text: contentText || null,
-      media_url: mediaUrl || null,
+      content_text: persistedText,
+      media_url:
+        messageType === 'template'
+          ? templateHeaderMediaUrl(templateRow, templateMessageParams)
+          : mediaUrl || null,
       template_name: templateName || null,
+      interactive_payload:
+        messageType === 'interactive' ? interactivePayload : null,
       message_id: waMessageId,
       status: 'sent',
       reply_to_message_id: replyToMessageId || null,
@@ -411,10 +508,17 @@ export async function sendMessageToConversation(
     );
   }
 
+  await applyPendingMessageStatuses(supabaseAdmin(), accountId, waMessageId);
+
+  const lastMessageText =
+    messageType === 'interactive'
+      ? interactivePayloadPreviewText(interactivePayload!)
+      : persistedText || `[${messageType}]`;
+
   await db
     .from('conversations')
     .update({
-      last_message_text: contentText || `[${messageType}]`,
+      last_message_text: lastMessageText,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })

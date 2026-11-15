@@ -21,7 +21,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe';
-import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
+import { parseInternationalPhone } from '@/lib/whatsapp/phone-utils';
 import { SendMessageError } from '@/lib/whatsapp/send-message';
 import { resolveAuditUserId, ContactError } from '@/lib/api/v1/contacts';
 
@@ -30,6 +30,7 @@ export interface ResolvedConversation {
   contactId: string;
   /** True if this call created the contact (vs matched an existing one). */
   contactCreated: boolean;
+  conversationCreated: boolean;
 }
 
 /**
@@ -44,11 +45,14 @@ export async function resolveConversationByPhone(
   phone: string,
   name?: string | null
 ): Promise<ResolvedConversation> {
-  const sanitized = sanitizePhoneForMeta(phone);
-  if (!isValidE164(sanitized)) {
+  // Raw integrator input: the leading `+` is required so the country
+  // code is explicit — "4155551212" would otherwise be delivered to
+  // Switzerland, not the US (issue #586).
+  const sanitized = parseInternationalPhone(phone);
+  if (!sanitized) {
     throw new SendMessageError(
       'bad_request',
-      "'to' must be a valid phone number in E.164 format (e.g. +14155550123)",
+      "'to' must be an international phone number with a leading + and country code (e.g. +14155550123)",
       400
     );
   }
@@ -91,12 +95,6 @@ export async function resolveConversationByPhone(
   const existing = await findExistingContact(db, accountId, sanitized);
   if (existing) {
     contactId = existing.id;
-    if (name && name !== existing.name) {
-      await db
-        .from('contacts')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
-    }
   } else {
     const { data: created, error: createErr } = await db
       .from('contacts')
@@ -138,12 +136,38 @@ export async function resolveConversationByPhone(
 
   // ---- conversation -------------------------------------------
   // One conversation per (account, contact) — same convention as the
-  // webhook. Oldest-first + limit(1), not `.maybeSingle()`: that helper
-  // reports an error for *more than one* row just as the webhook's
-  // `.single()` did, and reading that as "none exists" is what let a
-  // single duplicate multiply into a thread per message. Migration 034
-  // merges the existing duplicates and makes new ones impossible.
-  const { data: convs } = await db
+  // webhook. Order oldest-first and take one row rather than
+  // `.maybeSingle()`, which errors on ≥2 rows: if duplicates predate the
+  // unique index (migration 036), we resolve to the canonical survivor
+  // instead of falling through and creating yet another (issue #363).
+  const conversation = await findOrCreateConversationRow(
+    db,
+    accountId,
+    contactId,
+    ownerUserId
+  );
+
+  return {
+    conversationId: conversation.id,
+    contactId,
+    contactCreated,
+    conversationCreated: conversation.created,
+  };
+}
+
+/**
+ * Find (oldest-first) or create the single conversation for
+ * `(accountId, contactId)`. Handles the unique-index race the same way
+ * the inbound webhook does: on a 23505 from a concurrent create,
+ * re-resolve the winning row rather than failing the send.
+ */
+async function findOrCreateConversationRow(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  ownerUserId: string
+): Promise<{ id: string; created: boolean }> {
+  const { data: existing, error: findErr } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
@@ -151,8 +175,13 @@ export async function resolveConversationByPhone(
     .order('created_at', { ascending: true })
     .limit(1);
 
-  if (convs && convs.length > 0) {
-    return { conversationId: convs[0].id, contactId, contactCreated };
+  if (findErr) {
+    console.error('[resolve-conversation] conversation lookup error:', findErr);
+    throw new SendMessageError('db_error', 'Failed to resolve conversation', 500);
+  }
+
+  if (existing && existing.length > 0) {
+    return { id: existing[0].id, created: false };
   }
 
   const { data: newConv, error: convErr } = await db
@@ -166,9 +195,6 @@ export async function resolveConversationByPhone(
     .single();
 
   if (convErr || !newConv) {
-    // Lost the race against a concurrent inbound webhook — re-read the
-    // winner's row rather than failing a send that has nothing wrong
-    // with it.
     if (isUniqueViolation(convErr)) {
       const { data: raced } = await db
         .from('conversations')
@@ -178,16 +204,12 @@ export async function resolveConversationByPhone(
         .order('created_at', { ascending: true })
         .limit(1);
       if (raced && raced.length > 0) {
-        return { conversationId: raced[0].id, contactId, contactCreated };
+        return { id: raced[0].id, created: false };
       }
     }
     console.error('[resolve-conversation] conversation create error:', convErr);
-    throw new SendMessageError(
-      'db_error',
-      'Failed to create conversation',
-      500
-    );
+    throw new SendMessageError('db_error', 'Failed to create conversation', 500);
   }
 
-  return { conversationId: newConv.id, contactId, contactCreated };
+  return { id: newConv.id, created: true };
 }

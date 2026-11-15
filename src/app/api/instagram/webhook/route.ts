@@ -130,7 +130,7 @@ export async function POST(request: Request) {
   const igUserId = body?.entry?.[0]?.id ?? null
   const accountSecret = await lookupAppSecretByPageOrIgId(supabaseAdmin(), igUserId)
 
-  if (!verifyMetaWebhookSignature(rawBody, signature, [accountSecret, process.env.META_APP_SECRET])) {
+  if (!verifyMetaWebhookSignature(rawBody, signature, [accountSecret])) {
     console.warn('[instagram webhook] rejected request with invalid signature')
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
   }

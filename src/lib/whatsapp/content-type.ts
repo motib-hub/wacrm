@@ -32,5 +32,8 @@ export function toMessageContentType(metaType: string): string {
   // Stickers are images that happen to loop; the inbox renders them
   // with the image bubble.
   if (metaType === 'sticker') return 'image'
+  // A template quick-reply tap arrives as type 'button' (upstream
+  // issue #478); it is an answer to an interactive prompt.
+  if (metaType === 'button') return 'interactive'
   return 'text'
 }
