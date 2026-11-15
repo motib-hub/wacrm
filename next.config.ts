@@ -3,6 +3,13 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
+// Fork seam: this deployment speaks Spanish unless NEXT_PUBLIC_APP_LOCALE
+// says otherwise. Set here, before anything reads it, so the catalogue
+// alias below, src/i18n/request.ts and src/lib/i18n/translate.ts all get
+// the same value at build time. Tests don't load this file and stay on
+// English, as upstream expects.
+process.env.NEXT_PUBLIC_APP_LOCALE ||= "es";
+
 /**
  * Baseline security headers applied to every response.
  *
