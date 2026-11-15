@@ -48,7 +48,7 @@ export function TaskCard({ task, brand, assignee, showBrand, onOpen }: TaskCardP
       ) : null}
       <span
         className={cn(
-          "block text-sm leading-snug text-foreground",
+          "block text-sm leading-snug text-foreground [overflow-wrap:anywhere]",
           task.status === "hecho" && "text-muted-foreground line-through decoration-muted-foreground/40",
         )}
       >

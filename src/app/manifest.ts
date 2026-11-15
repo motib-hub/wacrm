@@ -6,8 +6,8 @@ import { BRAND } from "@/lib/branding";
 // app. The icon is the same route iOS uses (`apple-icon.tsx`).
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: BRAND.name,
-    short_name: BRAND.name,
+    name: `${BRAND.hub.lead} ${BRAND.hub.accent}`,
+    short_name: `${BRAND.hub.lead} ${BRAND.hub.accent}`,
     start_url: "/",
     scope: "/",
     display: "standalone",

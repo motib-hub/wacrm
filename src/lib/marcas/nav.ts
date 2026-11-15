@@ -1,14 +1,15 @@
 import type { MarcasRole } from './types';
 
 /**
- * The sidebar's main nav for a given Marcas role (fork seam).
+ * The sidebar's flat upstream nav for a given Marcas role (fork seam).
  *
- *   not a member → the CRM nav, untouched
- *   admin        → the CRM nav plus Marcas
- *   equipo       → Marcas only; their personal CRM account is not theirs to work
+ *   not a member → the CRM nav, untouched (client accounts)
+ *   member       → nothing here: the Motib HUB nav (src/components/hub)
+ *                  renders the modules instead, CRM included for admins
+ *   still loading→ nothing yet, so the team never sees the flat CRM nav
+ *                  flash before the hub replaces it
  */
-export function navForMarcasRole<T>(crmItems: T[], marcasItem: T, role: MarcasRole | null): T[] {
-  if (role === 'equipo') return [marcasItem];
-  if (role === 'admin') return [...crmItems, marcasItem];
+export function navForMarcasRole<T>(crmItems: T[], role: MarcasRole | null, loading: boolean): T[] {
+  if (loading || role) return [];
   return crmItems;
 }

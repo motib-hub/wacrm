@@ -2942,7 +2942,7 @@
   "Marcas": {
     "title": "Brands",
     "subtitle": "The brands the team works on, and their tasks.",
-    "tabBrands": "Brands",
+    "tabBrands": "Clients",
     "tabTasks": "Tasks",
     "empty": "No brands loaded yet.",
     "notMember": "You don't have access to Brands. Ask an admin to add you to the team.",
@@ -3031,6 +3031,19 @@
       "storiesTitle": "Stories",
       "unplanned": "Not in the plan",
       "storiesCount": "{count, plural, =1 {1 story} other {# stories}}"
+    }
+  },
+  "Hub": {
+    "group": {
+      "marcas": "Brands",
+      "crm": "CRM"
+    },
+    "marcas": {
+      "clients": "Clients",
+      "tasks": "Tasks"
+    },
+    "crm": {
+      "summary": "Overview"
     }
   }
 }

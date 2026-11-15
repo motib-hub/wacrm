@@ -5,15 +5,17 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
-// Fork seam (Marcas): adds the module to the nav for its members.
+// Fork seam (Motib HUB): agency members get the hub's module nav and
+// wordmark instead of the flat CRM list; client accounts see upstream's.
 import { useMarcasMember } from "@/hooks/use-marcas-member";
 import { navForMarcasRole } from "@/lib/marcas/nav";
+import { HubNav } from "@/components/hub/hub-nav";
+import { HubWordmark } from "@/components/hub/hub-wordmark";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   Bell,
   Bot,
-  Briefcase,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -107,8 +109,6 @@ const navItems: NavItem[] = [
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
 
-const marcasNavItem: NavItem = { href: "/marcas", labelKey: "marcas", icon: Briefcase };
-
 const bottomNavItems = [
   { href: "/settings", labelKey: "settings", icon: Settings },
 ];
@@ -125,8 +125,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
-  const { member: marcasMember } = useMarcasMember();
-  const visibleNavItems = navForMarcasRole(navItems, marcasNavItem, marcasMember?.role ?? null);
+  const { member: marcasMember, loading: marcasLoading } = useMarcasMember();
+  const visibleNavItems = navForMarcasRole(navItems, marcasMember?.role ?? null, marcasLoading);
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -212,7 +212,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <BrandMark className="h-[18px] w-[18px]" />
             </div>
             <span className="text-sm font-semibold text-foreground">
-              {BRAND.name}
+              <HubWordmark />
             </span>
           </Link>
           <button
@@ -227,6 +227,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <HubNav
+            crmItems={navItems}
+            pathname={pathname}
+            totalUnread={totalUnread}
+            unreadNotifications={unreadNotifications}
+          />
           <ul className="flex flex-col gap-1">
             {visibleNavItems.map((item) => {
               const isActive =

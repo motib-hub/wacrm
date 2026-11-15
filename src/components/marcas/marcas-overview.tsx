@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
@@ -11,12 +12,18 @@ import { TaskBoard } from "./task-board";
 import { useMarcasTasks } from "./use-marcas-tasks";
 import { useMarcasWorkspace } from "./use-marcas-workspace";
 
-type Tab = "brands" | "tasks";
+export type MarcasView = "brands" | "tasks";
 
-/** /marcas — every visible brand, and one board across all of them. */
-export function MarcasOverview({ member }: { member: MarcasMember }) {
+/** Each view has its own URL so the hub sidebar and these tabs always agree. */
+const VIEW_HREF: Record<MarcasView, string> = { brands: "/marcas", tasks: "/marcas/tareas" };
+
+/**
+ * /marcas (Clientes) — every visible brand; /marcas/tareas (Tareas) — one
+ * board across all of them.
+ */
+export function MarcasOverview({ member, view }: { member: MarcasMember; view: MarcasView }) {
   const t = useTranslations("Marcas");
-  const [tab, setTab] = useState<Tab>("brands");
+  const tab = view;
   const [onlyMine, setOnlyMine] = useState(false);
   const { brands, members, error } = useMarcasWorkspace(true);
   const board = useMarcasTasks();
@@ -40,19 +47,18 @@ export function MarcasOverview({ member }: { member: MarcasMember }) {
       <div className="flex flex-wrap items-center gap-3">
         <div role="tablist" className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
           {(["brands", "tasks"] as const).map((key) => (
-            <button
+            <Link
               key={key}
-              type="button"
+              href={VIEW_HREF[key]}
               role="tab"
               aria-selected={tab === key}
-              onClick={() => setTab(key)}
               className={cn(
                 "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                 tab === key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
               {t(key === "brands" ? "tabBrands" : "tabTasks")}
-            </button>
+            </Link>
           ))}
         </div>
         {tab === "tasks" ? (

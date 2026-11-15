@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { navForMarcasRole } from './nav';
 
 describe('navForMarcasRole', () => {
-  it('adds Marcas for admins, shows only Marcas to the team, leaves others alone', () => {
-    expect(navForMarcasRole(['inbox'], 'marcas', 'admin')).toEqual(['inbox', 'marcas']);
-    expect(navForMarcasRole(['inbox'], 'marcas', 'equipo')).toEqual(['marcas']);
-    expect(navForMarcasRole(['inbox'], 'marcas', null)).toEqual(['inbox']);
+  it('leaves the flat CRM nav to non-members and hands members to the hub', () => {
+    expect(navForMarcasRole(['inbox'], null, false)).toEqual(['inbox']);
+    expect(navForMarcasRole(['inbox'], 'admin', false)).toEqual([]);
+    expect(navForMarcasRole(['inbox'], 'equipo', false)).toEqual([]);
+  });
+
+  it('shows nothing while membership is still loading', () => {
+    expect(navForMarcasRole(['inbox'], null, true)).toEqual([]);
   });
 });

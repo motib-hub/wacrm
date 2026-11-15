@@ -18,8 +18,8 @@ keep the next sync cheap.
 | Instagram Direct + Lead Ads | `src/lib/instagram`, `src/lib/lead-ads`, `src/lib/meta` | 036 |
 | Automation conditions `two_way_conversation`, `arrived_from_ad`; one open deal per contact and pipeline | `src/lib/automations/engine.ts`, `validate.ts` | — |
 | **Marcas** — agency workspace: brands, task board, own team membership (`admin` / `equipo`) | `src/lib/marcas`, `src/components/marcas`, `src/app/(dashboard)/marcas`, `src/hooks/use-marcas-member.ts`; seams in `sidebar.tsx`, `dashboard-shell.tsx`, `middleware.ts` | 059_motib_marcas |
-
 | **Marcas · Contenido** — the brand's content plan, read live from its "Planificación" sheet and the Drive folders it links | `src/lib/marcas/content`, `src/lib/marcas/google`, `src/components/marcas/content`, `GET /api/marcas/content`; CSP `frame-src` seam in `next.config.ts` | 059_motib_marcas_integrations |
+| **Motib HUB** — the agency team (Marcas members) sees the app as the hub: "MOTIB HUB" wordmark and a sidebar of modules that fold open (MARCAS → Clientes, Tareas; CRM → upstream's whole nav, read from its list, so new upstream sections appear on their own). Client accounts keep upstream's flat nav and "MOTIB CRM" | `src/lib/hub`, `src/components/hub`, `BRAND.hub`, `/marcas/tareas`; seams in `sidebar.tsx` (nav + wordmark) | — |
 
 ### Marcas in one paragraph
 

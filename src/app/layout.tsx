@@ -56,7 +56,7 @@ const metadata: Metadata = {
   // (icon in apple-icon.tsx, manifest in manifest.ts).
   appleWebApp: {
     capable: true,
-    title: BRAND.name,
+    title: `${BRAND.hub.lead} ${BRAND.hub.accent}`,
     statusBarStyle: "default",
   },
   formatDetection: {

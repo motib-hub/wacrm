@@ -107,6 +107,20 @@ export const BRAND = {
     "M12.318 23.79C10.116 23.79 8.052 23.186 6.286 22.137C5.364 21.588 5.407 20.249 6.328 19.699C11.772 16.452 15.924 11.181 18.356 4.398C18.707 3.42 19.971 3.117 20.693 3.865C22.739 5.981 24 8.868 24 12.045C24 18.521 18.76 23.79 12.318 23.79ZM10.587 0.21C4.74 0.21 -0 4.95 -0 10.798C-0 16.645 4.74 21.385 10.587 21.385C16.435 21.385 21.175 16.645 21.175 10.798C21.175 4.95 16.435 0.21 10.587 0.21Z",
   ),
 
+  /**
+   * The agency's own workspace name (Motib HUB), shown instead of `name`
+   * to Marcas members — the agency team sees the hub, client accounts
+   * keep seeing `name`. Split in two so the second word can carry the
+   * accent color in the sidebar wordmark. Also the installed-app name
+   * (manifest + iOS home screen), since the people who install the app
+   * on a phone are the agency team.
+   */
+  hub: {
+    lead: orDefault(process.env.NEXT_PUBLIC_BRAND_HUB_LEAD, "MOTIB"),
+    accent: orDefault(process.env.NEXT_PUBLIC_BRAND_HUB_ACCENT, "HUB"),
+    accentColor: orDefault(process.env.NEXT_PUBLIC_BRAND_HUB_COLOR, "#5dbea3"),
+  },
+
   /** `null` when the signature is switched off — check before rendering. */
   agency: agencyName
     ? {
