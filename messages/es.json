@@ -28,6 +28,7 @@
     "automations": "Automatizaciones",
     "flows": "Flujos",
     "aiAgents": "Agentes de IA",
+    "marcas": "Marcas",
     "settings": "Configuración",
     "beta": "Beta",
     "unreadConversations": "{count} {count, plural, =1 {conversación sin leer} other {conversaciones sin leer}}",
@@ -2935,6 +2936,50 @@
       "submitFailed": "Error al enviar la plantilla.",
       "metaApiStatus": "Error de la API de Meta: {status}",
       "syncFailed": "Error al sincronizar las plantillas"
+    }
+  },
+  "Marcas": {
+    "title": "Marcas",
+    "subtitle": "Las marcas que trabaja el equipo y sus tareas.",
+    "tabBrands": "Marcas",
+    "tabTasks": "Tareas",
+    "empty": "Todavía no hay marcas cargadas.",
+    "notMember": "No tenés acceso a Marcas. Pedile a un administrador que te sume al equipo.",
+    "loadError": "No se pudo cargar: {message}",
+    "saveError": "No se pudo guardar: {message}",
+    "status": {
+      "hacer": "Por hacer",
+      "curso": "En curso",
+      "cliente": "Esperando cliente",
+      "hecho": "Hecho"
+    },
+    "openCount": "{count, plural, =0 {Sin tareas abiertas} =1 {1 tarea abierta} other {# tareas abiertas}}",
+    "addPlaceholder": "Nueva tarea y Enter",
+    "add": "Agregar",
+    "onlyMine": "Solo mías",
+    "allBrands": "Todas las marcas",
+    "pickBrand": "Marca…",
+    "back": "Marcas",
+    "contact": "Contacto: {name}",
+    "sheet": "Planilla de contenido",
+    "drive": "Carpeta de Drive",
+    "adminOnly": "Solo administradores",
+    "overdue": "Vencida",
+    "doneHint": "Lo hecho en los últimos {days} días",
+    "emptyColumn": "Nada por acá",
+    "brandNotFound": "Esa marca no existe o no tenés acceso.",
+    "edit": {
+      "title": "Editar tarea",
+      "task": "Tarea",
+      "status": "Estado",
+      "assignee": "Responsable",
+      "unassigned": "Sin asignar",
+      "due": "Fecha",
+      "brand": "Marca",
+      "save": "Guardar",
+      "delete": "Borrar",
+      "confirmDelete": "¿Borrar esta tarea?",
+      "cancel": "Cancelar"
     }
   }
 }

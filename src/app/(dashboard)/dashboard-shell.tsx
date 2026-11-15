@@ -8,6 +8,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AccountAccessAlert } from "@/components/layout/account-access-alert";
 import { PresenceHeartbeat } from "@/components/presence/presence-heartbeat";
+// Fork seam (Marcas): keeps team-only members inside /marcas.
+import { useMarcasPathGuard } from "@/components/marcas/use-marcas-path-guard";
 import { BrowserNotificationsListener } from "@/components/notifications/browser-notifications-listener";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
@@ -16,6 +18,7 @@ import { BrowserNotificationsListener } from "@/components/notifications/browser
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const leavingForMarcas = useMarcasPathGuard();
   const router = useRouter();
   const t = useTranslations("DashboardShell");
 
@@ -30,7 +33,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, router]);
 
-  if (loading) {
+  if (loading || leavingForMarcas) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">

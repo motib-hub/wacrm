@@ -5,11 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+// Fork seam (Marcas): adds the module to the nav for its members.
+import { useMarcasMember } from "@/hooks/use-marcas-member";
+import { navForMarcasRole } from "@/lib/marcas/nav";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { useUnreadNotifications } from "@/hooks/use-unread-notifications";
 import {
   Bell,
   Bot,
+  Briefcase,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -103,6 +107,8 @@ const navItems: NavItem[] = [
   { href: "/agents", labelKey: "aiAgents", icon: Bot },
 ];
 
+const marcasNavItem: NavItem = { href: "/marcas", labelKey: "marcas", icon: Briefcase };
+
 const bottomNavItems = [
   { href: "/settings", labelKey: "settings", icon: Settings },
 ];
@@ -119,6 +125,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const t = useTranslations("Sidebar");
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
+  const { member: marcasMember } = useMarcasMember();
+  const visibleNavItems = navForMarcasRole(navItems, marcasNavItem, marcasMember?.role ?? null);
   const totalUnread = useTotalUnread();
   const unreadNotifications = useUnreadNotifications();
   // Only surface the account-name strip when it actually carries
@@ -220,7 +228,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="flex flex-col gap-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 pathname === item.href ||
                 (item.href !== "/dashboard" && pathname.startsWith(item.href));

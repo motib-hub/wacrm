@@ -17,6 +17,19 @@ keep the next sync cheap.
 | Per-account Meta app secret | `lookupAppSecret` in the webhook, `webhook-signature.ts` | 035 |
 | Instagram Direct + Lead Ads | `src/lib/instagram`, `src/lib/lead-ads`, `src/lib/meta` | 036 |
 | Automation conditions `two_way_conversation`, `arrived_from_ad`; one open deal per contact and pipeline | `src/lib/automations/engine.ts`, `validate.ts` | — |
+| **Marcas** — agency workspace: brands, task board, own team membership (`admin` / `equipo`) | `src/lib/marcas`, `src/components/marcas`, `src/app/(dashboard)/marcas`, `src/hooks/use-marcas-member.ts`; seams in `sidebar.tsx`, `dashboard-shell.tsx`, `middleware.ts` | 059_motib_marcas |
+
+### Marcas in one paragraph
+
+Marcas does not use CRM accounts at all: `marcas_members` is its own
+roster, so a teammate who only works brands signs up (getting the empty
+personal account every CRM user gets), is added there as `equipo`, and
+from then on sees only `/marcas` — the nav shows nothing else and the
+shell redirects any other route. Security is RLS (`marcas_role()`,
+`marcas_can_see_brand()`); the redirect is only navigation. Brands
+flagged `team_visible` are the ones `equipo` sees. The repo is public,
+so brands, members and tasks are never seeded here — they are loaded
+from a private SQL file.
 
 ## Rules
 
