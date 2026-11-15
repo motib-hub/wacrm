@@ -48,6 +48,13 @@ const metadata: Metadata = {
     // way to retire the old one. Bump this whenever the mark changes.
     icon: [{ url: "/icon?v=2" }],
   },
+  // Fork seam: open full-screen when added to an iPhone home screen
+  // (icon in apple-icon.tsx, manifest in manifest.ts).
+  appleWebApp: {
+    capable: true,
+    title: BRAND.name,
+    statusBarStyle: "default",
+  },
   formatDetection: {
     email: false,
     address: false,
