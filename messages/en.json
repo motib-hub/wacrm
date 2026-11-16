@@ -2982,6 +2982,18 @@
       "confirmDelete": "Delete this task?",
       "cancel": "Cancel"
     },
+    "allContent": {
+      "noBrands": "No brand has a content sheet or Instagram folder linked yet.",
+      "rangeLabel": "Period",
+      "filterLabel": "What to show",
+      "brandLabel": "Brand",
+      "missing": "Missing material",
+      "allBrands": "All brands",
+      "someFailed": "Couldn't read content for: {brands}. The sheet may not be shared with the CRM reader; everything else is shown.",
+      "loading": "{count, plural, =1 {Reading 1 brand's sheet…} other {Reading # brands' sheets…}}",
+      "nothingMissing": "Nothing is missing in this period.",
+      "dayCount": "{count, plural, =1 {1 piece} other {# pieces}}"
+    },
     "content": {
       "tabTasks": "Tasks",
       "tabContent": "Content",
@@ -3040,7 +3052,8 @@
     },
     "marcas": {
       "clients": "Clients",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "content": "Content"
     },
     "crm": {
       "summary": "Overview"

@@ -2982,6 +2982,18 @@
       "confirmDelete": "Delete this task?",
       "cancel": "Cancel"
     },
+    "allContent": {
+      "noBrands": "Nenhuma marca tem planilha ou pasta do Instagram vinculada ainda.",
+      "rangeLabel": "Período",
+      "filterLabel": "O que mostrar",
+      "brandLabel": "Marca",
+      "missing": "Falta material",
+      "allBrands": "Todas as marcas",
+      "someFailed": "Não foi possível ler o conteúdo de: {brands}. A planilha pode não estar compartilhada com o leitor do CRM; o resto é exibido.",
+      "loading": "{count, plural, =1 {Lendo a planilha de 1 marca…} other {Lendo as planilhas de # marcas…}}",
+      "nothingMissing": "Não falta material neste período.",
+      "dayCount": "{count, plural, =1 {1 peça} other {# peças}}"
+    },
     "content": {
       "tabTasks": "Tasks",
       "tabContent": "Content",
@@ -3040,7 +3052,8 @@
     },
     "marcas": {
       "clients": "Clientes",
-      "tasks": "Tarefas"
+      "tasks": "Tarefas",
+      "content": "Conteúdo"
     },
     "crm": {
       "summary": "Resumo"

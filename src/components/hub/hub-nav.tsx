@@ -3,8 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState, type ComponentType } from "react";
 import { useTranslations } from "next-intl";
-import { Briefcase, ChevronDown, LayoutGrid, ListTodo, MessagesSquare } from "lucide-react";
+import {
+  Briefcase,
+  ChevronDown,
+  Images,
+  LayoutGrid,
+  ListTodo,
+  MessagesSquare,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MARCAS_SECTIONS, type MarcasSectionKey } from "@/lib/marcas/sections";
 import { useMarcasMember } from "@/hooks/use-marcas-member";
 import {
   HUB_COLLAPSED_STORAGE_KEY,
@@ -30,10 +38,17 @@ interface HubNavProps {
   unreadNotifications: number;
 }
 
-const MARCAS_ITEMS: HubNavItem[] = [
-  { href: "/marcas", labelKey: "clients", icon: LayoutGrid },
-  { href: "/marcas/tareas", labelKey: "tasks", icon: ListTodo },
-];
+const SECTION_ICON: Record<MarcasSectionKey, ComponentType<{ className?: string }>> = {
+  clients: LayoutGrid,
+  tasks: ListTodo,
+  content: Images,
+};
+
+const MARCAS_ITEMS: HubNavItem[] = MARCAS_SECTIONS.map((s) => ({
+  href: s.href,
+  labelKey: s.key,
+  icon: SECTION_ICON[s.key],
+}));
 
 const GROUP_ICON: Record<HubGroupKey, ComponentType<{ className?: string }>> = {
   marcas: Briefcase,

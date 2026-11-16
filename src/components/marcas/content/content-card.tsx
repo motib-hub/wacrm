@@ -15,9 +15,12 @@ export function ContentCard({
   piece,
   onOpen,
   variant = "feed",
+  brand,
 }: {
   piece: ContentPiece;
   onOpen: () => void;
+  /** Set on the all-brands views, where the card has to say whose it is. */
+  brand?: { name: string; color: string };
   /** Stories render as narrow 9:16 tiles in their own strip. */
   variant?: "feed" | "story";
 }) {
@@ -59,6 +62,12 @@ export function ContentCard({
         </span>
       )}
       <span className="flex flex-col gap-1.5 p-2.5">
+        {brand ? (
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            <span className="size-2 shrink-0 rounded-full" style={{ background: brand.color }} aria-hidden />
+            <span className="truncate">{brand.name}</span>
+          </span>
+        ) : null}
         <span className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
           {piece.title || piece.copy.slice(0, 60) || t("storiesTitle")}
         </span>

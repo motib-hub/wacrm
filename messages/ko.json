@@ -2982,6 +2982,18 @@
       "confirmDelete": "Delete this task?",
       "cancel": "Cancel"
     },
+    "allContent": {
+      "noBrands": "아직 콘텐츠 시트나 인스타그램 폴더가 연결된 브랜드가 없습니다.",
+      "rangeLabel": "기간",
+      "filterLabel": "표시 항목",
+      "brandLabel": "브랜드",
+      "missing": "자료 없음",
+      "allBrands": "모든 브랜드",
+      "someFailed": "다음 브랜드의 콘텐츠를 읽지 못했습니다: {brands}. 시트가 CRM 리더와 공유되지 않았을 수 있습니다. 나머지는 표시됩니다.",
+      "loading": "{count, plural, =1 {브랜드 1개의 시트를 읽는 중…} other {브랜드 #개의 시트를 읽는 중…}}",
+      "nothingMissing": "이 기간에 빠진 자료가 없습니다.",
+      "dayCount": "{count, plural, =1 {1개} other {#개}}"
+    },
     "content": {
       "tabTasks": "Tasks",
       "tabContent": "Content",
@@ -3040,7 +3052,8 @@
     },
     "marcas": {
       "clients": "클라이언트",
-      "tasks": "작업"
+      "tasks": "작업",
+      "content": "콘텐츠"
     },
     "crm": {
       "summary": "개요"
