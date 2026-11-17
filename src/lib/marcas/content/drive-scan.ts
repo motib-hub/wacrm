@@ -1,5 +1,6 @@
 import { dateFromName, monthFromFolderName } from './drive-dates';
-import { FOLDER_MIME, isMediaFile, listFolder, mapLimited, toMedia, type DriveFile } from './drive-api';
+import { FOLDER_MIME, isMediaFile, listFolder, mapLimited, readTextFile, toMedia, type DriveFile } from './drive-api';
+import { cleanManualNote, isManualNoteName } from './manual';
 import type { DriveFeedFolder, DriveStoryDay } from './merge';
 
 /**
@@ -94,11 +95,18 @@ export async function scanInstagramFolder(
     if (e.file.mimeType !== FOLDER_MIME && isMediaFile(e.file)) add(e.date, [toMedia(e.file)], folderUrl(e.parentId));
   }
   const dayFolders = storyEntries.filter((e) => e.file.mimeType === FOLDER_MIME);
-  const listed = await mapLimited(dayFolders, CONCURRENCY, async (e) => ({
-    e,
-    files: (await listFolder(e.file.id)).filter(isMediaFile),
-  }));
-  for (const { e, files } of listed) add(e.date, files.map(toMedia), folderUrl(e.file.id));
+  const listed = await mapLimited(dayFolders, CONCURRENCY, async (e) => {
+    const all = await listFolder(e.file.id);
+    const files = all.filter(isMediaFile).map(toMedia);
+    // The how-to is read only on days that have something to upload by hand.
+    const noteFile = files.some((m) => m.manual) ? all.find((f) => isManualNoteName(f.name)) : undefined;
+    const note = noteFile ? await readTextFile(noteFile.id).then(cleanManualNote, () => '') : '';
+    return { e, files, note };
+  });
+  for (const { e, files, note } of listed) {
+    add(e.date, files, folderUrl(e.file.id));
+    if (note) days.get(e.date)!.note = note;
+  }
 
   const storyDays = [...days.values()].map((d) => ({ ...d, media: d.media.sort((a, b) => a.name.localeCompare(b.name)) }));
   return { feedFolders, storyDays };

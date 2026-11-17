@@ -1,4 +1,5 @@
-import { googleGet } from '@/lib/marcas/google/client';
+import { googleGet, googleGetRaw } from '@/lib/marcas/google/client';
+import { isManualName } from './manual';
 import type { PieceMedia } from './types';
 
 /** Thin Drive v3 helpers for the content board (read-only robot). */
@@ -28,6 +29,12 @@ export async function getFile(id: string): Promise<DriveFile> {
   return googleGet<DriveFile>(`https://www.googleapis.com/drive/v3/files/${id}?fields=${FIELDS}&supportsAllDrives=true`);
 }
 
+/** A small text file's contents (the stories' "QUE SUBIR.txt"). */
+export async function readTextFile(id: string): Promise<string> {
+  const res = await googleGetRaw(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`);
+  return (await res.text()).slice(0, 4000);
+}
+
 export function isMediaFile(file: DriveFile): boolean {
   return file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/');
 }
@@ -41,6 +48,7 @@ export function toMedia(file: DriveFile): PieceMedia {
     // Drive hands back a 220px thumbnail; ask for a sharper one.
     thumbnail: file.thumbnailLink ? file.thumbnailLink.replace(/=s\d+$/, '=s800') : null,
     viewUrl: file.webViewLink ?? `https://drive.google.com/file/d/${file.id}/view`,
+    manual: isManualName(file.name),
   };
 }
 

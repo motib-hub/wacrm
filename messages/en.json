@@ -3042,7 +3042,11 @@
       },
       "storiesTitle": "Stories",
       "unplanned": "Not in the plan",
-      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}"
+      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}",
+      "manualBadge": "{count, plural, =1 {Manual} other {# manual}}",
+      "manualHint": "Has a sticker: upload it by hand from the phone",
+      "manualNote": "To upload by hand",
+      "download": "Download"
     }
   },
   "Hub": {

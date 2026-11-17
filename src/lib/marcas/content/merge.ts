@@ -26,6 +26,8 @@ export interface DriveStoryDay {
   media: PieceMedia[];
   /** The day's folder, or the month folder when stories are loose files. */
   folderUrl: string;
+  /** The day's "QUE SUBIR.txt", cleaned (see manual.ts). */
+  note?: string;
 }
 
 export interface MergeInput {
@@ -91,6 +93,7 @@ export function mergeSheetAndDrive({ rows, feedFolders, storyDays }: MergeInput)
       link: { kind: 'drive-folder', id: day.folderUrl.split('/').pop() ?? '', url: day.folderUrl },
       origin: 'drive',
       media,
+      ...(day.note && media.some((m) => m.manual) ? { manualNote: day.note } : {}),
     });
   }
   return out;

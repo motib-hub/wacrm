@@ -65,12 +65,17 @@ async function accessToken(): Promise<string> {
 
 /** GET a Google API URL as the service account; throws on non-2xx. */
 export async function googleGet<T>(url: string): Promise<T> {
+  return (await (await googleGetRaw(url)).json()) as T;
+}
+
+/** Same, but hands back the response itself (file contents: `alt=media`). */
+export async function googleGetRaw(url: string): Promise<Response> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${await accessToken()}` } });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new GoogleApiError(res.status, detail.slice(0, 300));
   }
-  return (await res.json()) as T;
+  return res;
 }
 
 export class GoogleApiError extends Error {

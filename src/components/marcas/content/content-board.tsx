@@ -150,7 +150,7 @@ export function ContentBoard({ brandId }: { brandId: string }) {
         </div>
       )}
 
-      {open ? <ContentDialog key={open.key} piece={open} onClose={() => setOpen(null)} /> : null}
+      {open ? <ContentDialog key={open.key} brandId={brandId} piece={open} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

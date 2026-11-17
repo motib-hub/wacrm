@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ImageOff, Layers, Play } from "lucide-react";
+import { ImageOff, Layers, Play, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ContentPiece } from "@/lib/marcas/content/types";
 import { PIECE_STATUS_STYLE } from "./content-style";
@@ -27,6 +27,16 @@ export function ContentCard({
   const t = useTranslations("Marcas.content");
   const cover = piece.media.find((m) => m.thumbnail) ?? null;
   const isVideo = cover?.kind === "video";
+  const manual = piece.media.filter((m) => m.manual).length;
+  const manualTag = manual > 0 ? (
+    <span
+      title={t("manualHint")}
+      className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+    >
+      <Smartphone className="size-3" aria-hidden />
+      {t("manualBadge", { count: manual })}
+    </span>
+  ) : null;
 
   return (
     <button
@@ -45,6 +55,7 @@ export function ContentCard({
               </span>
             </span>
           ) : null}
+          {manualTag ? <span className="absolute left-1.5 top-1.5">{manualTag}</span> : null}
           {piece.media.length > 1 ? (
             <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
               <Layers className="size-3" aria-hidden />
@@ -75,6 +86,7 @@ export function ContentCard({
           <span className={cn("rounded-full border px-1.5 py-0.5 font-medium", PIECE_STATUS_STYLE[piece.status])}>
             {t(`status.${piece.status}`)}
           </span>
+          {!cover?.thumbnail ? manualTag : null}
           {piece.origin === "drive" && variant === "feed" ? (
             <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-300">
               {t("unplanned")}

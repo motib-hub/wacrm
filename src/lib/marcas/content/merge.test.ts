@@ -6,7 +6,7 @@ const row = (o: Partial<PlannedRow>): PlannedRow => ({
   key: o.key ?? 'k', date: null, time: null, title: 't', formats: [], copy: '', story: '',
   notes: '', scheduled: false, link: null, ...o,
 });
-const media = (id: string): PieceMedia => ({ id, name: id, kind: 'image', thumbnail: null, viewUrl: '' });
+const media = (id: string): PieceMedia => ({ id, name: id, kind: 'image', thumbnail: null, viewUrl: '', manual: false });
 
 describe('mergeSheetAndDrive', () => {
   it('gives a linkless feed row the Drive folder of its date', () => {
@@ -59,5 +59,19 @@ describe('mergeSheetAndDrive', () => {
     });
     expect(out.find((p) => p.key === 'h')?.link).toBeNull();
     expect(out.find((p) => p.key === 'drive:F10')).toBeTruthy();
+  });
+
+  it('carries the how-to only while the day still has a by-hand file', () => {
+    const url = 'https://drive.google.com/drive/folders/D';
+    const out = mergeSheetAndDrive({
+      rows: [row({ key: 's', date: '2026-11-18', formats: ['historia'], link: { kind: 'drive-file', id: 'M1', url: 'u' } })],
+      feedFolders: [],
+      storyDays: [
+        { date: '2026-11-17', media: [{ ...media('M2'), manual: true }], folderUrl: url, note: 'Subí desde las 12' },
+        { date: '2026-11-18', media: [{ ...media('M1'), manual: true }, media('A1')], folderUrl: url, note: 'Subí desde las 12' },
+      ],
+    });
+    expect(out.find((p) => p.key === 'stories:2026-11-17')?.manualNote).toBe('Subí desde las 12');
+    expect(out.find((p) => p.key === 'stories:2026-11-18')?.manualNote).toBeUndefined();
   });
 });

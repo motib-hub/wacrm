@@ -62,6 +62,13 @@ own link wins; a dated feed row without a link takes that day's folder;
 unclaimed feed folders show as "not in the plan"; each day's stories
 become one strip, minus files a row already links.
 
+Stories with a sticker can't go out through the API, so the team names
+them `… - CON STICKER.jpg` and leaves a `QUE SUBIR.txt` in the day's
+folder (`src/lib/marcas/content/manual.ts`). The card flags them as
+manual, the dialog shows the cleaned instructions, and
+`GET /api/marcas/content/file` hands over the image (images only, and
+only from inside that brand's Drive folder) so nobody opens Drive.
+
 ## Rules
 
 1. **Never hard-code a product name.** Components import `BRAND`; the

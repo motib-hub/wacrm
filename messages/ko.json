@@ -3042,7 +3042,11 @@
       },
       "storiesTitle": "Stories",
       "unplanned": "Not in the plan",
-      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}"
+      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}",
+      "manualBadge": "{count, plural, other {수동 #}}",
+      "manualHint": "스티커 포함: 휴대폰에서 직접 업로드하세요",
+      "manualNote": "직접 업로드",
+      "download": "다운로드"
     }
   },
   "Hub": {

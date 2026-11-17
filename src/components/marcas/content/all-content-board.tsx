@@ -37,7 +37,7 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
   const [range, setRange] = useState<ContentRange>("next7");
   const [filter, setFilter] = useState<Filter>("all");
   const [brandFilter, setBrandFilter] = useState("");
-  const [open, setOpen] = useState<ContentPiece | null>(null);
+  const [open, setOpen] = useState<{ brandId: string; piece: ContentPiece } | null>(null);
 
   const span = useMemo(() => rangeWindow(range), [range]);
   const { pieces, errors, loading, generatedAt, reload, brandCount } = useAllBrandsContent(brands, span);
@@ -141,7 +141,7 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
                 {feed.length > 0 ? (
                   <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 lg:grid-cols-5">
                     {feed.map(({ brandId, piece }) => (
-                      <ContentCard key={`${brandId}:${piece.key}`} piece={piece} brand={brandTag(brandId)} onOpen={() => setOpen(piece)} />
+                      <ContentCard key={`${brandId}:${piece.key}`} piece={piece} brand={brandTag(brandId)} onOpen={() => setOpen({ brandId, piece })} />
                     ))}
                   </div>
                 ) : null}
@@ -151,7 +151,7 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
                     <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
                       {stories.map(({ brandId, piece }) => (
                         <div key={`${brandId}:${piece.key}`} className="w-28 shrink-0 snap-start sm:w-32">
-                          <ContentCard piece={piece} variant="story" brand={brandTag(brandId)} onOpen={() => setOpen(piece)} />
+                          <ContentCard piece={piece} variant="story" brand={brandTag(brandId)} onOpen={() => setOpen({ brandId, piece })} />
                         </div>
                       ))}
                     </div>
@@ -163,7 +163,7 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
         </div>
       )}
 
-      {open ? <ContentDialog key={open.key} piece={open} onClose={() => setOpen(null)} /> : null}
+      {open ? <ContentDialog key={`${open.brandId}:${open.piece.key}`} brandId={open.brandId} piece={open.piece} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

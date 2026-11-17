@@ -3042,7 +3042,11 @@
       },
       "storiesTitle": "Stories",
       "unplanned": "Not in the plan",
-      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}"
+      "storiesCount": "{count, plural, =1 {1 story} other {# stories}}",
+      "manualBadge": "{count, plural, =1 {Manual} other {# manuais}}",
+      "manualHint": "Tem sticker: suba manualmente pelo celular",
+      "manualNote": "Para subir manualmente",
+      "download": "Baixar"
     }
   },
   "Hub": {

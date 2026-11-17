@@ -30,6 +30,8 @@ export interface PieceMedia {
   thumbnail: string | null;
   /** Drive's own viewer/player for the file. */
   viewUrl: string;
+  /** Has to be uploaded by hand from the phone (its name says "CON STICKER"); see manual.ts. */
+  manual: boolean;
 }
 
 /** One planned row, as read from the sheet (before Drive enrichment). */
@@ -52,6 +54,8 @@ export interface ContentPiece extends PlannedRow {
   media: PieceMedia[];
   /** 'sheet' = a planned row; 'drive' = material found in a dated Drive folder with no row for it. */
   origin: 'sheet' | 'drive';
+  /** A stories day's "QUE SUBIR.txt", when it has files that go up by hand. */
+  manualNote?: string;
 }
 
 export interface ContentResponse {

@@ -3042,7 +3042,11 @@
       },
       "storiesTitle": "Historias",
       "unplanned": "Sin planificar",
-      "storiesCount": "{count, plural, =1 {1 historia} other {# historias}}"
+      "storiesCount": "{count, plural, =1 {1 historia} other {# historias}}",
+      "manualBadge": "{count, plural, =1 {Manual} other {# manuales}}",
+      "manualHint": "Va con sticker: se sube a mano desde el celular",
+      "manualNote": "Para subir a mano",
+      "download": "Descargar"
     }
   },
   "Hub": {
