@@ -13,6 +13,9 @@ import type { ContentPiece, PieceMedia, PlannedRow } from './types';
  *     that isn't in the plan is visible rather than silently ignored.
  *  4. Each day's Drive stories become one "Historias" piece, minus any
  *     file a sheet row already links (Maracaibo lists stories row by row).
+ *  5. A row with no format ticked whose link is a file of the Stories
+ *     folder is a story: the file says what it is even when the sheet's
+ *     FEED / HISTORIA boxes were left blank.
  */
 
 export interface DriveFeedFolder {
@@ -51,7 +54,13 @@ export function mergeSheetAndDrive({ rows, feedFolders, storyDays }: MergeInput)
     byDate.set(f.date, [...(byDate.get(f.date) ?? []), f]);
   }
 
-  const out: Draft[] = rows.map((row) => {
+  const storyFiles = new Set(storyDays.flatMap((d) => d.media.map((m) => m.id)));
+  const withFormat = (row: PlannedRow): PlannedRow =>
+    row.formats.length === 0 && row.link?.kind === 'drive-file' && storyFiles.has(row.link.id)
+      ? { ...row, formats: ['historia'] }
+      : row;
+
+  const out: Draft[] = rows.map(withFormat).map((row) => {
     if (row.link || !row.date || isStory(row)) return { ...row, origin: 'sheet' as const };
     const folder = byDate.get(row.date)?.shift();
     if (!folder) return { ...row, origin: 'sheet' as const };

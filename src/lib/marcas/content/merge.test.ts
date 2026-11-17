@@ -74,4 +74,17 @@ describe('mergeSheetAndDrive', () => {
     expect(out.find((p) => p.key === 'stories:2026-11-17')?.manualNote).toBe('Subí desde las 12');
     expect(out.find((p) => p.key === 'stories:2026-11-18')?.manualNote).toBeUndefined();
   });
+
+  it('reads a row with no format ticked as a story when it links a Stories file', () => {
+    const out = mergeSheetAndDrive({
+      rows: [
+        row({ key: 'pulpa', date: '2026-11-17', link: { kind: 'drive-file', id: 'S2', url: 'u' } }),
+        row({ key: 'otro', date: '2026-11-17', link: { kind: 'drive-file', id: 'X', url: 'u' } }),
+      ],
+      feedFolders: [],
+      storyDays: [{ date: '2026-11-17', media: [media('S1'), media('S2')], folderUrl: 'https://drive.google.com/drive/folders/M' }],
+    });
+    expect(out.find((p) => p.key === 'pulpa')?.formats).toEqual(['historia']);
+    expect(out.find((p) => p.key === 'otro')?.formats).toEqual([]);
+  });
 });
