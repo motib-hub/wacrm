@@ -3047,6 +3047,39 @@
       "manualHint": "Tem sticker: suba manualmente pelo celular",
       "manualNote": "Para subir manualmente",
       "download": "Baixar"
+    },
+    "summary": {
+      "timezone": "Dias no horário da Argentina.",
+      "today": "Hoje",
+      "tileYesterday": "Ontem no Instagram",
+      "tileYesterdayHint": "Publicado / planejado, marcas conectadas",
+      "tileToday": "Para hoje",
+      "tileTodayHint": "Peças planejadas",
+      "tileTodayManual": "{count, plural, =1 {1 sobe à mão (sticker)} other {# sobem à mão (sticker)}}",
+      "tileMissing": "Falta material",
+      "tileMissingHint": "Próximos 7 dias",
+      "tileOverdue": "Tarefas atrasadas",
+      "tileOverdueHint": "{open} abertas · {waiting} aguardando o cliente",
+      "igTitle": "Instagram: planejado vs. publicado",
+      "igHint": "Cada dia compara a planilha com o que saiu na conta. Os stories são salvos duas vezes por dia, antes de sumirem.",
+      "igLegend": "Verde: saiu tudo · Âmbar: saiu uma parte · Vermelho: não saiu nada · ?: stories antes da primeira leitura · +N: publicado sem planejar.",
+      "igNotLinked": "Sem conexão com o Instagram",
+      "igError": "Não foi possível ler o Instagram",
+      "igFailed": "Não foi possível ler o Instagram agora. Tente de novo em instantes.",
+      "igNotConfigured": "A conta da Meta do HUB ainda não está conectada.",
+      "cellDetail": "Feed {feedOut}/{feedPlan} · Stories {storiesOut}/{storiesPlan}",
+      "cellPlanOnly": "{count, plural, =0 {Nada planejado} =1 {1 planejada} other {# planejadas}}",
+      "cellFeed": "F {out}/{plan}",
+      "cellStories": "S {out}/{plan}",
+      "todayTitle": "Hoje · {day}",
+      "todayEmpty": "Nada planejado para hoje.",
+      "missingTitle": "Falta material · próximos 7 dias",
+      "missingEmpty": "Não falta material nesta semana.",
+      "someFailed": "Não foi possível ler: {brands}.",
+      "tasksTitle": "Tarefas da semana",
+      "tasksOpen": "Ver tarefas",
+      "tasksEmpty": "Nenhuma tarefa atrasada ou a vencer.",
+      "overdue": "Atrasada"
     }
   },
   "Hub": {
@@ -3055,6 +3088,7 @@
       "crm": "CRM"
     },
     "marcas": {
+      "summary": "Resumo",
       "clients": "Clientes",
       "tasks": "Tarefas",
       "content": "Conteúdo"

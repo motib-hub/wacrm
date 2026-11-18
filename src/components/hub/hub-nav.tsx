@@ -7,6 +7,7 @@ import {
   Briefcase,
   ChevronDown,
   Images,
+  Gauge,
   LayoutGrid,
   ListTodo,
   MessagesSquare,
@@ -39,6 +40,7 @@ interface HubNavProps {
 }
 
 const SECTION_ICON: Record<MarcasSectionKey, ComponentType<{ className?: string }>> = {
+  summary: Gauge,
   clients: LayoutGrid,
   tasks: ListTodo,
   content: Images,

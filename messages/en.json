@@ -3047,6 +3047,39 @@
       "manualHint": "Has a sticker: upload it by hand from the phone",
       "manualNote": "To upload by hand",
       "download": "Download"
+    },
+    "summary": {
+      "timezone": "Days follow Argentina's time.",
+      "today": "Today",
+      "tileYesterday": "Yesterday on Instagram",
+      "tileYesterdayHint": "Published / planned, connected brands",
+      "tileToday": "For today",
+      "tileTodayHint": "Planned pieces",
+      "tileTodayManual": "{count, plural, =1 {1 goes up by hand (sticker)} other {# go up by hand (sticker)}}",
+      "tileMissing": "Missing material",
+      "tileMissingHint": "Next 7 days",
+      "tileOverdue": "Overdue tasks",
+      "tileOverdueHint": "{open} open · {waiting} waiting on the client",
+      "igTitle": "Instagram: planned vs. published",
+      "igHint": "Each day compares the plan with what went out on the account. Stories are saved twice a day, before they disappear.",
+      "igLegend": "Green: all out · Amber: part of it · Red: nothing out · ?: stories before the first read · +N: published without a plan.",
+      "igNotLinked": "Not connected to Instagram",
+      "igError": "Couldn't read Instagram",
+      "igFailed": "Couldn't read Instagram right now. Try again in a while.",
+      "igNotConfigured": "The HUB's Meta account isn't connected yet.",
+      "cellDetail": "Feed {feedOut}/{feedPlan} · Stories {storiesOut}/{storiesPlan}",
+      "cellPlanOnly": "{count, plural, =0 {Nothing planned} =1 {1 planned} other {# planned}}",
+      "cellFeed": "F {out}/{plan}",
+      "cellStories": "S {out}/{plan}",
+      "todayTitle": "Today · {day}",
+      "todayEmpty": "Nothing planned for today.",
+      "missingTitle": "Missing material · next 7 days",
+      "missingEmpty": "Nothing missing this week.",
+      "someFailed": "Couldn't read: {brands}.",
+      "tasksTitle": "This week's tasks",
+      "tasksOpen": "See tasks",
+      "tasksEmpty": "No overdue or upcoming tasks.",
+      "overdue": "Overdue"
     }
   },
   "Hub": {
@@ -3055,6 +3088,7 @@
       "crm": "CRM"
     },
     "marcas": {
+      "summary": "Summary",
       "clients": "Clients",
       "tasks": "Tasks",
       "content": "Content"

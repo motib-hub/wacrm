@@ -3047,6 +3047,39 @@
       "manualHint": "Va con sticker: se sube a mano desde el celular",
       "manualNote": "Para subir a mano",
       "download": "Descargar"
+    },
+    "summary": {
+      "timezone": "Días según la hora de Argentina.",
+      "today": "Hoy",
+      "tileYesterday": "Ayer en Instagram",
+      "tileYesterdayHint": "Publicado / planificado, marcas conectadas",
+      "tileToday": "Para hoy",
+      "tileTodayHint": "Piezas planificadas",
+      "tileTodayManual": "{count, plural, =1 {1 va a mano (sticker)} other {# van a mano (sticker)}}",
+      "tileMissing": "Falta material",
+      "tileMissingHint": "Próximos 7 días",
+      "tileOverdue": "Tareas vencidas",
+      "tileOverdueHint": "{open} abiertas · {waiting} esperando al cliente",
+      "igTitle": "Instagram: planificado vs. publicado",
+      "igHint": "Cada día compara la planilla con lo que salió en la cuenta. Las historias se guardan dos veces por día, antes de que desaparezcan.",
+      "igLegend": "Verde: salió todo · Ámbar: salió una parte · Rojo: no salió nada · ? : historias anteriores a la primera lectura · +N: publicado sin planificar.",
+      "igNotLinked": "Sin conexión a Instagram",
+      "igError": "No se pudo leer Instagram",
+      "igFailed": "No se pudo leer Instagram ahora. Probá de nuevo en un rato.",
+      "igNotConfigured": "Falta conectar la cuenta de Meta del HUB.",
+      "cellDetail": "Feed {feedOut}/{feedPlan} · Historias {storiesOut}/{storiesPlan}",
+      "cellPlanOnly": "{count, plural, =0 {Nada planificado} =1 {1 planificada} other {# planificadas}}",
+      "cellFeed": "F {out}/{plan}",
+      "cellStories": "H {out}/{plan}",
+      "todayTitle": "Hoy · {day}",
+      "todayEmpty": "No hay nada planificado para hoy.",
+      "missingTitle": "Falta material · próximos 7 días",
+      "missingEmpty": "No falta material esta semana.",
+      "someFailed": "No se pudo leer: {brands}.",
+      "tasksTitle": "Tareas de esta semana",
+      "tasksOpen": "Ver tareas",
+      "tasksEmpty": "No hay tareas vencidas ni por vencer.",
+      "overdue": "Vencida"
     }
   },
   "Hub": {
@@ -3055,6 +3088,7 @@
       "crm": "CRM"
     },
     "marcas": {
+      "summary": "Resumen",
       "clients": "Clientes",
       "tasks": "Tareas",
       "content": "Contenido"

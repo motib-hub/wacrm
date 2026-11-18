@@ -4,6 +4,7 @@
  * never disagree. Labels live under `Hub.marcas.<key>`.
  */
 export const MARCAS_SECTIONS = [
+  { key: 'summary', href: '/marcas/resumen' },
   { key: 'clients', href: '/marcas' },
   { key: 'tasks', href: '/marcas/tareas' },
   { key: 'content', href: '/marcas/contenido' },

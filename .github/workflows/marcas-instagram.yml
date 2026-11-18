@@ -1,0 +1,30 @@
+name: Marcas · Instagram read
+
+# Fork-only (Motib). Keeps a copy of what each brand published on
+# Instagram before stories vanish (24 h), for the Marcas summary.
+# Twice a day so no story is missed even if a run is late: 23:30 and
+# 11:30 in Argentina (UTC−3).
+#
+# Secrets: MARCAS_SYNC_URL (…/api/marcas/instagram/sync) and
+# MARCAS_SYNC_SECRET (the cronSecret stored with the Meta token).
+
+on:
+  schedule:
+    - cron: '30 2,14 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sync:
+    if: github.repository == 'motib-hub/wacrm'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read Instagram
+        env:
+          URL: ${{ secrets.MARCAS_SYNC_URL }}
+          SECRET: ${{ secrets.MARCAS_SYNC_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 120 \
+            -X POST -H "Authorization: Bearer $SECRET" "$URL"

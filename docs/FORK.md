@@ -19,6 +19,7 @@ keep the next sync cheap.
 | Automation conditions `two_way_conversation`, `arrived_from_ad`; one open deal per contact and pipeline | `src/lib/automations/engine.ts`, `validate.ts` | — |
 | **Marcas** — agency workspace: brands, task board, own team membership (`admin` / `equipo`) | `src/lib/marcas`, `src/components/marcas`, `src/app/(dashboard)/marcas`, `src/hooks/use-marcas-member.ts`; seams in `sidebar.tsx`, `dashboard-shell.tsx`, `middleware.ts` | 059_motib_marcas |
 | **Marcas · Contenido** — the brand's content plan, read live from its "Planificación" sheet and the Drive folders it links | `src/lib/marcas/content`, `src/lib/marcas/google`, `src/components/marcas/content`, `GET /api/marcas/content`; CSP `frame-src` seam in `next.config.ts` | 059_motib_marcas_integrations |
+| **Marcas · Resumen** — dashboard: Instagram planned vs. published per brand and day, today, missing material for the next 7 days, tasks due | `src/lib/marcas/instagram`, `src/lib/marcas/summary.ts`, `src/components/marcas/summary`, `/marcas/resumen`, `GET /api/marcas/instagram`, `POST /api/marcas/instagram/sync` + `.github/workflows/marcas-instagram.yml` | 059_motib_marcas_published_instagram |
 | **Motib HUB** — the agency team (Marcas members) sees the app as the hub: "MOTIB HUB" wordmark and a sidebar of modules that fold open (MARCAS → Clientes, Tareas; CRM → upstream's whole nav, read from its list, so new upstream sections appear on their own). Client accounts keep upstream's flat nav and "MOTIB CRM" | `src/lib/hub`, `src/components/hub`, `BRAND.hub`, `/marcas/tareas`, `/marcas/contenido` (every brand's content together, same `GET /api/marcas/content` per brand), section list in `src/lib/marcas/sections.ts`; seams in `sidebar.tsx` (nav + wordmark) | — |
 
 ### Marcas in one paragraph
@@ -32,6 +33,22 @@ shell redirects any other route. Security is RLS (`marcas_role()`,
 flagged `team_visible` are the ones `equipo` sees. The repo is public,
 so brands, members and tasks are never seeded here — they are loaded
 from a private SQL file.
+
+### Resumen (Instagram planned vs. published)
+
+`marcas_brands.instagram_username` links a brand to its account. Meta is
+read as a business **system user** of Motib's portfolio that each client
+shares its Page + Instagram with as a partner (read scopes only:
+`instagram_basic`, `instagram_manage_insights`, `pages_show_list`,
+`pages_read_engagement`, `ads_read`). Its token and the scheduled sync's
+secret are kept encrypted in `marcas_integrations` (id `meta`,
+`{"token","cronSecret"}`). Stories vanish from the API after 24 h, so a
+GitHub Actions schedule calls `POST /api/marcas/instagram/sync` twice a
+day (secrets `MARCAS_SYNC_URL`, `MARCAS_SYNC_SECRET`) and the summary
+also refreshes, throttled, when opened. Only ids, type, time and
+permalink are stored (`marcas_ig_media`); `marcas_ig_sync.first_at`
+marks from when stories can be judged (earlier days show "?", not 0).
+Days are Argentina's (UTC−3). Publishing never goes through the CRM.
 
 ### Contenido (how the board stays in sync without storing anything)
 
