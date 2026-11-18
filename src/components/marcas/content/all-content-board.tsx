@@ -18,7 +18,6 @@ const RANGES: ContentRange[] = ["next7", "next14", "next30", "past14"];
 const FILTERS = ["all", "feed", "stories", "missing"] as const;
 type Filter = (typeof FILTERS)[number];
 
-
 const SEGMENT =
   "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors";
 const segmentClass = (active: boolean) =>

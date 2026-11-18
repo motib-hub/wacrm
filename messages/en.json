@@ -3064,7 +3064,6 @@
       "igHint": "Each day compares the plan with what went out on the account. Stories are saved twice a day, before they disappear.",
       "igLegend": "Green: all out · Amber: part of it · Red: nothing out · ?: stories before the first read · +N: published without a plan.",
       "igNotLinked": "Not connected to Instagram",
-      "igError": "Couldn't read Instagram",
       "igFailed": "Couldn't read Instagram right now. Try again in a while.",
       "igNotConfigured": "The HUB's Meta account isn't connected yet.",
       "cellDetail": "Feed {feedOut}/{feedPlan} · Stories {storiesOut}/{storiesPlan}",
@@ -3079,7 +3078,10 @@
       "tasksTitle": "This week's tasks",
       "tasksOpen": "See tasks",
       "tasksEmpty": "No overdue or upcoming tasks.",
-      "overdue": "Overdue"
+      "overdue": "Overdue",
+      "igStale": "Not read since {when}",
+      "igNeverRead": "Not read yet",
+      "igTruncated": "There is more data than fits in this view; showing the first part."
     }
   },
   "Hub": {

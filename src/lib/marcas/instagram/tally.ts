@@ -66,13 +66,13 @@ export type DayVerdict =
   | 'none' //        nothing, with something planned
   | 'unplanned' //   nothing planned (whatever went out is a bonus)
   | 'pending' //     today, still in progress
-  | 'unknown'; //    before the first read: stories can't be checked
+  | 'unknown'; //    stories can't be checked (no read in time)
 
 export interface DayTally {
   date: string;
   planned: Counts;
   published: Counts;
-  /** Stories of that day were never seen by a sync (before the first one). */
+  /** Some of that day's stories may have vanished unseen (no read in time). */
   storiesUnknown: boolean;
   verdict: DayVerdict;
 }
@@ -100,22 +100,43 @@ export function dayScore(day: Pick<DayTally, 'planned' | 'published' | 'storiesU
   };
 }
 
+const DAY_MS = 86_400_000;
+/** UTC instant where an Argentine day starts (00:00 at UTC−3). */
+const dayStart = (date: string) => Date.parse(`${date}T03:00:00Z`);
+
+/**
+ * Whether every story posted on `date` was visible to some read. A story
+ * lives 24 h, so a story posted at t is caught if a read happens in
+ * [t, t + 24 h]. That holds for the whole day when the reads between the
+ * day's start and 24 h after its end leave no gap longer than 24 h,
+ * start within 24 h of the day and reach past its end. Today is judged
+ * so far: any read since midnight saw everything posted until then.
+ */
+export function storiesCovered(date: string, syncs: string[], today: string): boolean {
+  const from = dayStart(date);
+  const times = syncs.map((s) => Date.parse(s)).filter((t) => t >= from).sort((a, b) => a - b);
+  if (date >= today) return times.length > 0;
+  const to = from + DAY_MS; // end of the day
+  const window = times.filter((t) => t <= to + DAY_MS);
+  if (window.length === 0 || window[0] > from + DAY_MS || window[window.length - 1] < to) return false;
+  return window.every((t, i) => i === 0 || t - window[i - 1] <= DAY_MS);
+}
+
 /**
  * One brand's days: the plan's pieces and the published items are
- * grouped by Argentine date; `firstSyncAt` (null = never read) decides
+ * grouped by Argentine date; `syncs` (every successful read) decide
  * which days' stories can be judged.
  */
 export function tallyDays(
   dates: string[],
   pieces: ContentPiece[],
   items: PublishedItem[],
-  opts: { today: string; firstSyncAt: string | null },
+  opts: { today: string; syncs: string[] },
 ): DayTally[] {
-  const firstDay = opts.firstSyncAt ? argentinaDate(opts.firstSyncAt) : null;
   return dates.map((date) => {
     const planned = plannedCounts(pieces.filter((p) => p.date === date));
     const published = publishedCounts(items.filter((i) => argentinaDate(i.taken_at) === date));
-    const storiesUnknown = firstDay === null || date < firstDay;
+    const storiesUnknown = !storiesCovered(date, opts.syncs, opts.today);
     return {
       date,
       planned,

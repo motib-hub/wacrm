@@ -24,6 +24,7 @@ export function InstagramGrid({
   loading,
   failed,
   configured,
+  truncated,
 }: {
   rows: BrandIgRow[];
   days: string[];
@@ -31,6 +32,7 @@ export function InstagramGrid({
   loading: boolean;
   failed: boolean;
   configured: boolean | undefined;
+  truncated: boolean;
 }) {
   const t = useTranslations("Marcas.summary");
   const locale = useLocale();
@@ -43,6 +45,7 @@ export function InstagramGrid({
       </div>
       {failed ? <p className="text-xs text-destructive">{t("igFailed")}</p> : null}
       {configured === false ? <p className="text-xs text-muted-foreground">{t("igNotConfigured")}</p> : null}
+      {truncated ? <p className="text-xs text-amber-700 dark:text-amber-300">{t("igTruncated")}</p> : null}
       {loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -69,8 +72,12 @@ export function InstagramGrid({
                       <span className="truncate font-medium text-foreground">{row.brand.name}</span>
                     </div>
                     {!row.linked ? (
-                      <span className="text-[10px] text-muted-foreground">
-                        {row.outcome === "error" ? t("igError") : t("igNotLinked")}
+                      <span className="text-[10px] text-muted-foreground">{t("igNotLinked")}</span>
+                    ) : row.stale ? (
+                      <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                        {row.lastSyncAt
+                          ? t("igStale", { when: new Date(row.lastSyncAt).toLocaleString(locale, { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) })
+                          : t("igNeverRead")}
                       </span>
                     ) : null}
                   </td>

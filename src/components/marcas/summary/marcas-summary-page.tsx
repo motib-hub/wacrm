@@ -97,6 +97,7 @@ function SummaryBody({ brands }: { brands: MarcasBrand[] }) {
         loading={!pieces || !ig}
         failed={s.instagram.failed && !ig}
         configured={ig?.configured}
+        truncated={ig?.truncated ?? false}
       />
 
       <div className="grid gap-5 lg:grid-cols-2">

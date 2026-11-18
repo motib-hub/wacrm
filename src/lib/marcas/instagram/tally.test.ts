@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentPiece, PieceMedia } from '../content/types';
-import { argentinaDate, dayScore, plannedCounts, shiftDate, tallyDays, verdictFor, type PublishedItem } from './tally';
+import { argentinaDate, dayScore, plannedCounts, storiesCovered, shiftDate, tallyDays, verdictFor, type PublishedItem } from './tally';
 
 const media = (id: string): PieceMedia => ({ id, name: id, kind: 'image', thumbnail: null, viewUrl: '', manual: false });
 const piece = (o: Partial<ContentPiece>): ContentPiece => ({
@@ -70,7 +70,7 @@ describe('tallyDays', () => {
         item({ kind: 'story', taken_at: '2026-11-17T12:00:00+0000' }),
         item({ kind: 'story', taken_at: '2026-11-18T01:30:00+0000' }), // 22:30 in Argentina
       ],
-      { today: '2026-11-18', firstSyncAt: '2026-11-17T10:00:00Z' },
+      { today: '2026-11-18', syncs: ['2026-11-17T10:00:00Z', '2026-11-18T02:30:00Z', '2026-11-18T14:30:00Z'] },
     );
     expect(days[0]).toMatchObject({ date: '2026-11-16', storiesUnknown: true, verdict: 'unknown' });
     expect(days[1]).toMatchObject({
@@ -86,5 +86,26 @@ describe('dayScore', () => {
     const planned = { feed: 1, stories: 4 };
     expect(dayScore({ planned, published: { feed: 1, stories: 6 }, storiesUnknown: false })).toEqual({ met: 5, total: 5 });
     expect(dayScore({ planned, published: { feed: 0, stories: 2 }, storiesUnknown: true })).toEqual({ met: 0, total: 1 });
+  });
+});
+
+describe('storiesCovered', () => {
+  const today = '2026-11-20';
+  it('needs reads at most 24 h apart from the day until 24 h after it', () => {
+    // 17 Nov (Argentina) = 03:00Z on the 17th → 03:00Z on the 18th.
+    const twiceADay = ['2026-11-17T02:30:00Z', '2026-11-17T14:30:00Z', '2026-11-18T02:30:00Z', '2026-11-18T14:30:00Z'];
+    expect(storiesCovered('2026-11-17', twiceADay, today)).toBe(true);
+  });
+
+  it('flags a missed schedule instead of trusting a 0', () => {
+    expect(storiesCovered('2026-11-17', ['2026-11-17T04:00:00Z', '2026-11-19T04:00:00Z'], today)).toBe(false);
+    expect(storiesCovered('2026-11-17', [], today)).toBe(false);
+    // last read before the day ends: late stories were never seen
+    expect(storiesCovered('2026-11-17', ['2026-11-17T04:00:00Z', '2026-11-17T20:00:00Z'], today)).toBe(false);
+  });
+
+  it('judges today by any read since midnight', () => {
+    expect(storiesCovered(today, ['2026-11-20T05:00:00Z'], today)).toBe(true);
+    expect(storiesCovered(today, ['2026-11-19T20:00:00Z'], today)).toBe(false);
   });
 });

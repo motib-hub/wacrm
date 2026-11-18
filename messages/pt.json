@@ -3064,7 +3064,6 @@
       "igHint": "Cada dia compara a planilha com o que saiu na conta. Os stories são salvos duas vezes por dia, antes de sumirem.",
       "igLegend": "Verde: saiu tudo · Âmbar: saiu uma parte · Vermelho: não saiu nada · ?: stories antes da primeira leitura · +N: publicado sem planejar.",
       "igNotLinked": "Sem conexão com o Instagram",
-      "igError": "Não foi possível ler o Instagram",
       "igFailed": "Não foi possível ler o Instagram agora. Tente de novo em instantes.",
       "igNotConfigured": "A conta da Meta do HUB ainda não está conectada.",
       "cellDetail": "Feed {feedOut}/{feedPlan} · Stories {storiesOut}/{storiesPlan}",
@@ -3079,7 +3078,10 @@
       "tasksTitle": "Tarefas da semana",
       "tasksOpen": "Ver tarefas",
       "tasksEmpty": "Nenhuma tarefa atrasada ou a vencer.",
-      "overdue": "Atrasada"
+      "overdue": "Atrasada",
+      "igStale": "Sem leitura desde {when}",
+      "igNeverRead": "Ainda sem leitura",
+      "igTruncated": "Há mais dados do que cabem nesta visão; mostrando os primeiros."
     }
   },
   "Hub": {

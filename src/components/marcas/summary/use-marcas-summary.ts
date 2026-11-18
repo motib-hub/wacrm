@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { contentBucket } from "@/lib/marcas/content/buckets";
 import type { ContentPiece } from "@/lib/marcas/content/types";
 import { argentinaDate, dayScore, shiftDate, tallyDays, type DayTally } from "@/lib/marcas/instagram/tally";
-import type { SyncOutcome } from "@/lib/marcas/instagram/sync";
 import { dueSoon, taskTotals } from "@/lib/marcas/summary";
 import type { MarcasBrand } from "@/lib/marcas/types";
 import { useAllBrandsContent } from "../content/use-all-brands-content";
@@ -15,10 +14,16 @@ const PAST_DAYS = 6;
 const NEXT_DAYS = 7;
 const DUE_SOON_SHOWN = 8;
 
+/** A read older than this means the schedule stopped: say so on the row. */
+const STALE_MS = 26 * 3_600_000;
+
 export interface BrandIgRow {
   brand: MarcasBrand;
+  /** Has an Instagram account set (and Meta is configured). */
   linked: boolean;
-  outcome: SyncOutcome | undefined;
+  /** Linked, but no read in the window or none for over a day. */
+  stale: boolean;
+  lastSyncAt: string | null;
   tallies: DayTally[];
 }
 
@@ -29,7 +34,12 @@ export interface BrandIgRow {
  * calendar, whatever the viewer's timezone.
  */
 export function useMarcasSummary(brands: MarcasBrand[]) {
-  const [today] = useState(() => argentinaDate(new Date()));
+  // Re-evaluated on every refresh, so a tab left open past midnight moves on.
+  const [today, setToday] = useState(() => argentinaDate(new Date()));
+  useEffect(() => {
+    const timer = setInterval(() => setToday(argentinaDate(new Date())), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const past = useMemo(() => ({ from: shiftDate(today, -PAST_DAYS), to: today }), [today]);
   const span = useMemo(() => ({ from: past.from, to: shiftDate(today, NEXT_DAYS) }), [past, today]);
   const days = useMemo(() => Array.from({ length: PAST_DAYS + 1 }, (_, i) => shiftDate(past.from, i)), [past]);
@@ -46,13 +56,14 @@ export function useMarcasSummary(brands: MarcasBrand[]) {
       .filter((b) => b.sheet_url || b.drive_url)
       .map((brand) => {
         const state = ig?.brands[brand.id];
-        const linked = state?.outcome === "ok";
+        // Stored rows count even when the latest read failed: they are still true.
+        const linked = Boolean(ig?.configured && state?.username);
         const items = linked ? (ig?.items ?? []).filter((i) => i.brand_id === brand.id) : [];
-        const tallies = tallyDays(days, byBrand.get(brand.id) ?? [], items, {
-          today,
-          firstSyncAt: linked ? (state?.firstSyncAt ?? null) : null,
-        });
-        return { brand, linked, outcome: state?.outcome, tallies };
+        const tallies = tallyDays(days, byBrand.get(brand.id) ?? [], items, { today, syncs: linked ? (state?.syncs ?? []) : [] });
+        const lastSyncAt = state?.lastSyncAt ?? null;
+        // eslint-disable-next-line react-hooks/purity -- staleness is relative to "now" by design
+        const stale = linked && (!lastSyncAt || Date.now() - Date.parse(lastSyncAt) > STALE_MS);
+        return { brand, linked, stale, lastSyncAt, tallies };
       });
   }, [brands, instagram.data, content.pieces, days, today]);
 
@@ -94,6 +105,7 @@ export function useMarcasSummary(brands: MarcasBrand[]) {
     taskTotals: tasks ? taskTotals(tasks) : null,
     dueSoon: tasks ? dueSoon(tasks).slice(0, DUE_SOON_SHOWN) : [],
     reload: () => {
+      setToday(argentinaDate(new Date()));
       content.reload();
       instagram.reload();
     },

@@ -12,7 +12,9 @@ import { decrypt } from '@/lib/whatsapp/encryption';
  * It only carries read scopes: publishing never goes through the CRM.
  */
 
+// Pinned on purpose; Meta retires each version ~2 years after release (v23.0: May 2025).
 const GRAPH = 'https://graph.facebook.com/v23.0/';
+const TIMEOUT_MS = 8_000;
 const ACCOUNTS_TTL_MS = 3_600_000;
 
 interface MetaCredentials {
@@ -64,13 +66,17 @@ export class MetaApiError extends Error {
   }
 }
 
-async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
+async function graphGet<T>(pathOrUrl: string, params: Record<string, string> = {}): Promise<T> {
   const creds = await loadCredentials();
   if (!creds) throw new MetaApiError(0, 'not configured');
+  // `paging.next` comes back as a full URL; anything else is a path.
+  const url = pathOrUrl.startsWith('https://') ? pathOrUrl : `${GRAPH}${pathOrUrl}?${new URLSearchParams(params)}`;
+  if (!url.startsWith(GRAPH)) throw new MetaApiError(0, 'unexpected paging url');
   // Token in a header, never in the URL: URLs end up in logs.
-  const res = await fetch(`${GRAPH}${path}?${new URLSearchParams(params)}`, {
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${creds.token}` },
     cache: 'no-store',
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) {
     // Meta's error body never echoes the token, but keep it short anyway.
@@ -82,19 +88,24 @@ async function graphGet<T>(path: string, params: Record<string, string>): Promis
 
 interface Page<T> {
   data?: T[];
+  paging?: { next?: string };
 }
 
 /** Instagram accounts the system user reaches, by lowercase username → IG user id. */
 export async function instagramAccounts(): Promise<Map<string, string>> {
   if (accounts && Date.now() - accounts.at < ACCOUNTS_TTL_MS) return accounts.byUsername;
-  const pages = await graphGet<Page<{ instagram_business_account?: { id: string; username?: string } }>>(
-    'me/accounts',
-    { fields: 'instagram_business_account{id,username}', limit: '100' },
-  );
+  type FbPage = { instagram_business_account?: { id: string; username?: string } };
   const byUsername = new Map<string, string>();
-  for (const page of pages.data ?? []) {
-    const ig = page.instagram_business_account;
-    if (ig?.username) byUsername.set(ig.username.toLowerCase(), ig.id);
+  let page: Page<FbPage> | null = await graphGet<Page<FbPage>>('me/accounts', {
+    fields: 'instagram_business_account{id,username}',
+    limit: '100',
+  });
+  for (let n = 0; page && n < 10; n++) {
+    for (const p of page.data ?? []) {
+      const ig = p.instagram_business_account;
+      if (ig?.username) byUsername.set(ig.username.toLowerCase(), ig.id);
+    }
+    page = page.paging?.next ? await graphGet<Page<FbPage>>(page.paging.next) : null;
   }
   accounts = { at: Date.now(), byUsername };
   return byUsername;
@@ -110,7 +121,7 @@ export interface IgMedia {
 const MEDIA_FIELDS = 'id,media_type,timestamp,permalink';
 
 /** The account's latest feed posts (newest first). */
-export async function recentPosts(igUserId: string, limit = 30): Promise<IgMedia[]> {
+export async function recentPosts(igUserId: string, limit = 50): Promise<IgMedia[]> {
   return (await graphGet<Page<IgMedia>>(`${igUserId}/media`, { fields: MEDIA_FIELDS, limit: String(limit) })).data ?? [];
 }
 

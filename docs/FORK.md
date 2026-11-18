@@ -46,9 +46,19 @@ secret are kept encrypted in `marcas_integrations` (id `meta`,
 GitHub Actions schedule calls `POST /api/marcas/instagram/sync` twice a
 day (secrets `MARCAS_SYNC_URL`, `MARCAS_SYNC_SECRET`) and the summary
 also refreshes, throttled, when opened. Only ids, type, time and
-permalink are stored (`marcas_ig_media`); `marcas_ig_sync.first_at`
-marks from when stories can be judged (earlier days show "?", not 0).
-Days are Argentina's (UTC−3). Publishing never goes through the CRM.
+permalink are stored (`marcas_ig_media`). Every successful read is
+logged (`marcas_ig_sync_log`, pruned at 90 days): a day's stories are
+judged only if reads around it are never more than 24 h apart, so a
+missed schedule shows "?" instead of a false 0, and a row whose last
+read is over 26 h old is flagged on screen. The page answers from the
+database; reads from Meta run after the response (`after()`), throttled
+by the log so it holds across serverless instances. Days are Argentina's
+(UTC−3). Publishing never goes through the CRM.
+
+Upkeep: the Graph API version is pinned in `graph.ts` (v23.0) and must
+be bumped before Meta retires it; GitHub disables scheduled workflows in
+a public repo after 60 days without commits (the stale flag shows it);
+the `meta` row's `client_email` holds the system user's name.
 
 ### Contenido (how the board stays in sync without storing anything)
 

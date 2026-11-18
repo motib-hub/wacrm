@@ -3064,7 +3064,6 @@
       "igHint": "매일 계획표와 계정에 실제로 올라간 것을 비교합니다. 스토리는 사라지기 전에 하루 두 번 저장됩니다.",
       "igLegend": "초록: 모두 게시 · 주황: 일부 게시 · 빨강: 게시 없음 · ?: 첫 확인 이전의 스토리 · +N: 계획 없이 게시.",
       "igNotLinked": "인스타그램 미연결",
-      "igError": "인스타그램을 읽을 수 없음",
       "igFailed": "지금은 인스타그램을 읽을 수 없습니다. 잠시 후 다시 시도하세요.",
       "igNotConfigured": "HUB의 Meta 계정이 아직 연결되지 않았습니다.",
       "cellDetail": "피드 {feedOut}/{feedPlan} · 스토리 {storiesOut}/{storiesPlan}",
@@ -3079,7 +3078,10 @@
       "tasksTitle": "이번 주 작업",
       "tasksOpen": "작업 보기",
       "tasksEmpty": "기한이 지났거나 다가오는 작업이 없습니다.",
-      "overdue": "기한 지남"
+      "overdue": "기한 지남",
+      "igStale": "{when} 이후 확인 안 됨",
+      "igNeverRead": "아직 확인 안 됨",
+      "igTruncated": "이 화면에 담을 수 있는 것보다 데이터가 많아 앞부분만 표시합니다."
     }
   },
   "Hub": {

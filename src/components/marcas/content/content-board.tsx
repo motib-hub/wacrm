@@ -16,8 +16,6 @@ const RANGES: ContentRange[] = ["next7", "next14", "next30", "past14"];
 const FILTERS = ["all", "feed", "stories"] as const;
 type Filter = (typeof FILTERS)[number];
 
-/** Stories-only pieces (a sheet row ticked HISTORIA, or a day of Drive stories). */
-
 /** The read-only Google robot sheets must be shared with (Viewer). */
 const ROBOT_EMAIL = "crm-lector@motib-crm.iam.gserviceaccount.com";
 
