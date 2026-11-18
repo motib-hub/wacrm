@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ArrowRight, Loader2, RefreshCw } from "lucide-react";
@@ -9,18 +9,16 @@ import { cn } from "@/lib/utils";
 import type { MarcasBrand } from "@/lib/marcas/types";
 import { MarcasSectionHeader } from "../section-header";
 import { useMarcasWorkspace } from "../use-marcas-workspace";
-import { ContentDialog } from "../content/content-dialog";
 import { dayLabel } from "../content/content-style";
-import type { BrandPiece } from "../content/use-all-brands-content";
 import { InstagramGrid } from "./instagram-grid";
-import { PieceRow } from "./piece-row";
 import { useMarcasSummary } from "./use-marcas-summary";
 
 /**
- * /marcas/resumen — the Marcas dashboard: did yesterday's plan go out on
- * Instagram, what goes out today, what is still missing this week and
- * which tasks are due. Data and rules live in useMarcasSummary and
- * src/lib/marcas/instagram/tally.ts; this file only lays it out.
+ * /marcas/resumen — the Marcas dashboard: did the plan go out on
+ * Instagram and which tasks are due. Today's pieces and missing material
+ * live in the content board, not here. Data and rules live in
+ * useMarcasSummary and src/lib/marcas/instagram/tally.ts; this file only
+ * lays it out.
  */
 export function MarcasSummaryPage() {
   const t = useTranslations("Marcas");
@@ -47,7 +45,6 @@ function SummaryBody({ brands }: { brands: MarcasBrand[] }) {
   const tContent = useTranslations("Marcas.content");
   const locale = useLocale();
   const s = useMarcasSummary(brands);
-  const [open, setOpen] = useState<BrandPiece | null>(null);
 
   const brandsById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands]);
   const brandName = (id: string) => brandsById.get(id)?.name ?? id;
@@ -65,22 +62,11 @@ function SummaryBody({ brands }: { brands: MarcasBrand[] }) {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <Tile
           label={t("tileYesterday")}
           value={!pieces || !ig ? "…" : s.yesterday.total > 0 ? `${s.yesterday.met}/${s.yesterday.total}` : "—"}
           hint={t("tileYesterdayHint")}
-        />
-        <Tile
-          label={t("tileToday")}
-          value={pieces ? String(s.todayPieces.length) : "…"}
-          hint={s.manualToday > 0 ? t("tileTodayManual", { count: s.manualToday }) : t("tileTodayHint")}
-        />
-        <Tile
-          label={t("tileMissing")}
-          value={pieces ? String(s.missing.length) : "…"}
-          hint={t("tileMissingHint")}
-          tone={s.missing.length > 0 ? "warn" : undefined}
         />
         <Tile
           label={t("tileOverdue")}
@@ -98,32 +84,8 @@ function SummaryBody({ brands }: { brands: MarcasBrand[] }) {
         failed={s.instagram.failed && !ig}
         configured={ig?.configured}
         truncated={ig?.truncated ?? false}
+        footer={failedBrands.length > 0 ? t("someFailed", { brands: failedBrands.map(brandName).join(", ") }) : null}
       />
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel title={t("todayTitle", { day: dayLabel(s.today, locale) })} loading={!pieces} empty={s.todayPieces.length === 0 ? t("todayEmpty") : null}>
-          {s.todayPieces.map((bp) => (
-            <PieceRow key={`${bp.brandId}:${bp.piece.key}`} bp={bp} brandName={brandName(bp.brandId)} onOpen={() => setOpen(bp)} />
-          ))}
-        </Panel>
-
-        <Panel
-          title={t("missingTitle")}
-          loading={!pieces}
-          empty={s.missing.length === 0 ? t("missingEmpty") : null}
-          footer={failedBrands.length > 0 ? t("someFailed", { brands: failedBrands.map(brandName).join(", ") }) : null}
-        >
-          {s.missing.map((bp) => (
-            <PieceRow
-              key={`${bp.brandId}:${bp.piece.key}`}
-              bp={bp}
-              brandName={brandName(bp.brandId)}
-              day={dayLabel(bp.piece.date!, locale)}
-              onOpen={() => setOpen(bp)}
-            />
-          ))}
-        </Panel>
-      </div>
 
       <Panel
         title={t("tasksTitle")}
@@ -151,9 +113,6 @@ function SummaryBody({ brands }: { brands: MarcasBrand[] }) {
         })}
       </Panel>
 
-      {open ? (
-        <ContentDialog key={`${open.brandId}:${open.piece.key}`} brandId={open.brandId} piece={open.piece} onClose={() => setOpen(null)} />
-      ) : null}
     </div>
   );
 }
@@ -182,14 +141,12 @@ function Panel({
   action,
   loading,
   empty,
-  footer,
   children,
 }: {
   title: string;
   action?: React.ReactNode;
   loading: boolean;
   empty: string | null;
-  footer?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -205,7 +162,6 @@ function Panel({
       ) : (
         <ul className="flex flex-col divide-y divide-border">{children}</ul>
       )}
-      {footer ? <p className="text-[11px] text-muted-foreground">{footer}</p> : null}
     </section>
   );
 }

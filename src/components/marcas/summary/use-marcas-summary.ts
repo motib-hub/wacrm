@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { contentBucket } from "@/lib/marcas/content/buckets";
 import type { ContentPiece } from "@/lib/marcas/content/types";
 import { argentinaDate, dayScore, shiftDate, tallyDays, type DayTally } from "@/lib/marcas/instagram/tally";
 import { dueSoon, taskTotals } from "@/lib/marcas/summary";
@@ -11,7 +10,6 @@ import { useMarcasTasks } from "../use-marcas-tasks";
 import { useInstagramPublished } from "./use-instagram-published";
 
 const PAST_DAYS = 6;
-const NEXT_DAYS = 7;
 const DUE_SOON_SHOWN = 8;
 
 /** A read older than this means the schedule stopped: say so on the row. */
@@ -29,7 +27,7 @@ export interface BrandIgRow {
 
 /**
  * Everything the summary shows, from three sources the other Marcas pages
- * already use: the content plans (sheet + Drive), what Instagram shows
+ * already use: the content plans (sheet + Drive) of the last days, what Instagram shows
  * (GET /api/marcas/instagram) and the tasks. Days follow Argentina's
  * calendar, whatever the viewer's timezone.
  */
@@ -41,10 +39,9 @@ export function useMarcasSummary(brands: MarcasBrand[]) {
     return () => clearInterval(timer);
   }, []);
   const past = useMemo(() => ({ from: shiftDate(today, -PAST_DAYS), to: today }), [today]);
-  const span = useMemo(() => ({ from: past.from, to: shiftDate(today, NEXT_DAYS) }), [past, today]);
   const days = useMemo(() => Array.from({ length: PAST_DAYS + 1 }, (_, i) => shiftDate(past.from, i)), [past]);
 
-  const content = useAllBrandsContent(brands, span);
+  const content = useAllBrandsContent(brands, past);
   const instagram = useInstagramPublished(past);
   const { tasks } = useMarcasTasks();
 
@@ -81,16 +78,6 @@ export function useMarcasSummary(brands: MarcasBrand[]) {
     return { met, total };
   }, [igRows, today]);
 
-  const pieces = content.pieces;
-  const todayPieces = useMemo(() => (pieces ?? []).filter((bp) => bp.piece.date === today), [pieces, today]);
-  const missing = useMemo(
-    () =>
-      (pieces ?? []).filter(
-        (bp) => bp.piece.date !== null && bp.piece.date > today && contentBucket(bp.piece.status) === "missing",
-      ),
-    [pieces, today],
-  );
-
   return {
     today,
     days,
@@ -98,9 +85,6 @@ export function useMarcasSummary(brands: MarcasBrand[]) {
     instagram,
     igRows,
     yesterday,
-    todayPieces,
-    manualToday: todayPieces.filter((bp) => bp.piece.media.some((m) => m.manual)).length,
-    missing,
     tasks,
     taskTotals: tasks ? taskTotals(tasks) : null,
     dueSoon: tasks ? dueSoon(tasks).slice(0, DUE_SOON_SHOWN) : [],

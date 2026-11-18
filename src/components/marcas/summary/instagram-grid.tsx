@@ -25,6 +25,7 @@ export function InstagramGrid({
   failed,
   configured,
   truncated,
+  footer,
 }: {
   rows: BrandIgRow[];
   days: string[];
@@ -33,6 +34,8 @@ export function InstagramGrid({
   failed: boolean;
   configured: boolean | undefined;
   truncated: boolean;
+  /** Brands whose plan couldn't be read (their planned counts are missing). */
+  footer: string | null;
 }) {
   const t = useTranslations("Marcas.summary");
   const locale = useLocale();
@@ -52,10 +55,10 @@ export function InstagramGrid({
         </div>
       ) : (
         <div className="-mx-4 overflow-x-auto px-4">
-          <table className="w-full min-w-[640px] border-separate border-spacing-1 text-xs">
+          <table className="w-full min-w-[560px] border-separate border-spacing-1 text-xs">
             <thead>
               <tr>
-                <th className="w-40" />
+                <th className="sticky left-0 z-10 w-28 bg-card sm:w-40" />
                 {days.map((d) => (
                   <th key={d} className={cn("font-medium text-muted-foreground", d === today && "text-foreground")}>
                     {d === today ? t("today") : dayLabel(d, locale)}
@@ -66,15 +69,15 @@ export function InstagramGrid({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.brand.id}>
-                  <td className="pr-2 align-middle">
+                  <td className="sticky left-0 z-10 max-w-28 bg-card pr-2 align-middle sm:max-w-40">
                     <div className="flex items-center gap-2">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: row.brand.color }} />
                       <span className="truncate font-medium text-foreground">{row.brand.name}</span>
                     </div>
                     {!row.linked ? (
-                      <span className="text-[10px] text-muted-foreground">{t("igNotLinked")}</span>
+                      <span className="block text-[10px] leading-tight text-muted-foreground">{t("igNotLinked")}</span>
                     ) : row.stale ? (
-                      <span className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                      <span className="block text-[10px] font-medium leading-tight text-amber-700 dark:text-amber-300">
                         {row.lastSyncAt
                           ? t("igStale", { when: new Date(row.lastSyncAt).toLocaleString(locale, { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) })
                           : t("igNeverRead")}
@@ -91,6 +94,7 @@ export function InstagramGrid({
         </div>
       )}
       <p className="text-[11px] text-muted-foreground">{t("igLegend")}</p>
+      {footer ? <p className="text-[11px] text-muted-foreground">{footer}</p> : null}
     </section>
   );
 }
