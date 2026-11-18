@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { contentBucket } from "@/lib/marcas/content/buckets";
+import { contentBucket, isStoryPiece } from "@/lib/marcas/content/buckets";
 import type { ContentPiece } from "@/lib/marcas/content/types";
 import type { MarcasBrand } from "@/lib/marcas/types";
 import { ContentCard } from "./content-card";
@@ -18,7 +18,6 @@ const RANGES: ContentRange[] = ["next7", "next14", "next30", "past14"];
 const FILTERS = ["all", "feed", "stories", "missing"] as const;
 type Filter = (typeof FILTERS)[number];
 
-const isStory = (p: ContentPiece) => p.formats.includes("historia") && p.formats.every((f) => f === "historia");
 
 const SEGMENT =
   "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors";
@@ -46,8 +45,8 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
   const days = useMemo(() => {
     const visible = (pieces ?? []).filter(({ brandId, piece }) => {
       if (brandFilter && brandId !== brandFilter) return false;
-      if (filter === "feed") return !isStory(piece);
-      if (filter === "stories") return isStory(piece);
+      if (filter === "feed") return !isStoryPiece(piece);
+      if (filter === "stories") return isStoryPiece(piece);
       if (filter === "missing") return contentBucket(piece.status) === "missing";
       return true;
     });
@@ -128,8 +127,8 @@ export function AllContentBoard({ brands }: { brands: MarcasBrand[] }) {
       ) : (
         <div className="flex flex-col gap-6">
           {days.map(([date, items]) => {
-            const feed = items.filter((x) => !isStory(x.piece));
-            const stories = items.filter((x) => isStory(x.piece));
+            const feed = items.filter((x) => !isStoryPiece(x.piece));
+            const stories = items.filter((x) => isStoryPiece(x.piece));
             return (
               <section key={date ?? "undated"} className="flex flex-col gap-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

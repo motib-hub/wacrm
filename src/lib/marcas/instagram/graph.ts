@@ -20,12 +20,15 @@ interface MetaCredentials {
   cronSecret?: string;
 }
 
-let credentials: MetaCredentials | null = null;
+const CREDENTIALS_TTL_MS = 10 * 60_000;
+
+// Re-read every few minutes, so a rotated token takes effect without a redeploy.
+let credentials: { at: number; value: MetaCredentials } | null = null;
 let accounts: { at: number; byUsername: Map<string, string> } | null = null;
 
 /** null when Meta isn't set up yet: the summary just shows "not connected". */
 async function loadCredentials(): Promise<MetaCredentials | null> {
-  if (credentials) return credentials;
+  if (credentials && Date.now() - credentials.at < CREDENTIALS_TTL_MS) return credentials.value;
   const { data, error } = await supabaseAdmin()
     .from('marcas_integrations')
     .select('credentials')
@@ -34,8 +37,9 @@ async function loadCredentials(): Promise<MetaCredentials | null> {
   if (error) throw new Error(`meta credentials: ${error.message}`);
   const encrypted = data?.[0]?.credentials;
   if (!encrypted) return null;
-  credentials = JSON.parse(decrypt(encrypted)) as MetaCredentials;
-  return credentials;
+  const value = JSON.parse(decrypt(encrypted)) as MetaCredentials;
+  credentials = { at: Date.now(), value };
+  return value;
 }
 
 export async function metaConfigured(): Promise<boolean> {
@@ -63,8 +67,11 @@ export class MetaApiError extends Error {
 async function graphGet<T>(path: string, params: Record<string, string>): Promise<T> {
   const creds = await loadCredentials();
   if (!creds) throw new MetaApiError(0, 'not configured');
-  const query = new URLSearchParams({ ...params, access_token: creds.token });
-  const res = await fetch(`${GRAPH}${path}?${query}`, { cache: 'no-store' });
+  // Token in a header, never in the URL: URLs end up in logs.
+  const res = await fetch(`${GRAPH}${path}?${new URLSearchParams(params)}`, {
+    headers: { Authorization: `Bearer ${creds.token}` },
+    cache: 'no-store',
+  });
   if (!res.ok) {
     // Meta's error body never echoes the token, but keep it short anyway.
     const detail = await res.text().catch(() => '');

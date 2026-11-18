@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { InstagramResponse } from "@/app/api/marcas/instagram/route";
+import type { InstagramResponse } from "@/lib/marcas/instagram/types";
 
 const AUTO_REFRESH_MS = 300_000;
 

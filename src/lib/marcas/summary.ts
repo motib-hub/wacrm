@@ -1,5 +1,5 @@
 import { isOverdue, localIsoDate } from './board';
-import type { MarcasBrand, MarcasMember, MarcasTask } from './types';
+import type { MarcasTask } from './types';
 
 /**
  * Numbers for the Marcas summary page (pure; summary.test.ts). Everything
@@ -52,64 +52,4 @@ export function dueSoon(tasks: MarcasTask[], now: Date = new Date()): MarcasTask
   return tasks
     .filter((t) => t.status !== 'hecho' && t.due_date !== null && t.due_date <= limit)
     .sort((a, b) => a.due_date!.localeCompare(b.due_date!));
-}
-
-export interface BrandRow {
-  brand: MarcasBrand;
-  hacer: number;
-  curso: number;
-  cliente: number;
-  overdue: number;
-  doneLast7: number;
-  nextDue: string | null;
-}
-
-export function brandRows(brands: MarcasBrand[], tasks: MarcasTask[], now: Date = new Date()): BrandRow[] {
-  const rows = new Map<string, BrandRow>(
-    brands.map((b) => [b.id, { brand: b, hacer: 0, curso: 0, cliente: 0, overdue: 0, doneLast7: 0, nextDue: null }]),
-  );
-  for (const task of tasks) {
-    const row = rows.get(task.brand_id);
-    if (!row) continue;
-    if (task.status === 'hecho') {
-      if (doneWithin(task, 7, now)) row.doneLast7++;
-      continue;
-    }
-    row[task.status]++;
-    if (isOverdue(task, now)) row.overdue++;
-    if (task.due_date && (row.nextDue === null || task.due_date < row.nextDue)) row.nextDue = task.due_date;
-  }
-  return [...rows.values()];
-}
-
-export interface MemberRow {
-  /** null = tasks nobody owns yet. */
-  member: MarcasMember | null;
-  open: number;
-  curso: number;
-  overdue: number;
-  doneLast7: number;
-}
-
-/** Workload per teammate, plus an "unassigned" row when there is any. */
-export function memberRows(members: MarcasMember[], tasks: MarcasTask[], now: Date = new Date()): MemberRow[] {
-  const blank = (member: MarcasMember | null): MemberRow => ({ member, open: 0, curso: 0, overdue: 0, doneLast7: 0 });
-  const rows = new Map<string | null, MemberRow>(members.map((m) => [m.user_id, blank(m)]));
-  for (const task of tasks) {
-    const key = task.assignee_id && rows.has(task.assignee_id) ? task.assignee_id : null;
-    if (!rows.has(key)) rows.set(key, blank(null));
-    const row = rows.get(key)!;
-    if (task.status === 'hecho') {
-      if (doneWithin(task, 7, now)) row.doneLast7++;
-      continue;
-    }
-    row.open++;
-    if (task.status === 'curso') row.curso++;
-    if (isOverdue(task, now)) row.overdue++;
-  }
-  const unassigned = rows.get(null);
-  return [
-    ...members.map((m) => rows.get(m.user_id)!),
-    ...(unassigned && (unassigned.open > 0 || unassigned.doneLast7 > 0) ? [unassigned] : []),
-  ];
 }

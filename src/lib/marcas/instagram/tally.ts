@@ -1,3 +1,4 @@
+import { isStoryPiece } from '../content/buckets';
 import type { ContentPiece } from '../content/types';
 
 /**
@@ -35,9 +36,6 @@ export interface Counts {
   feed: number;
   stories: number;
 }
-
-export const isStoryPiece = (p: Pick<ContentPiece, 'formats'>) =>
-  p.formats.length > 0 && p.formats.every((f) => f === 'historia');
 
 /**
  * What the plan expects that day. A feed piece is one post; a stories
@@ -87,6 +85,19 @@ export function verdictFor(planned: Counts, published: Counts, opts: { today: bo
   if (met >= plannedTotal) return 'done';
   if (opts.today) return 'pending';
   return met === 0 ? 'none' : 'partial';
+}
+
+/**
+ * The part of a day that can be judged, as "met of planned": stories
+ * count only once they were seen by a sync, and extra stories never make
+ * up for a missing post.
+ */
+export function dayScore(day: Pick<DayTally, 'planned' | 'published' | 'storiesUnknown'>): { met: number; total: number } {
+  const stories = day.storiesUnknown ? 0 : 1;
+  return {
+    met: Math.min(day.published.feed, day.planned.feed) + stories * Math.min(day.published.stories, day.planned.stories),
+    total: day.planned.feed + stories * day.planned.stories,
+  };
 }
 
 /**

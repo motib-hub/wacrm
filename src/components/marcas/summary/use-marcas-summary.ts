@@ -1,0 +1,101 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { contentBucket } from "@/lib/marcas/content/buckets";
+import type { ContentPiece } from "@/lib/marcas/content/types";
+import { argentinaDate, dayScore, shiftDate, tallyDays, type DayTally } from "@/lib/marcas/instagram/tally";
+import type { SyncOutcome } from "@/lib/marcas/instagram/sync";
+import { dueSoon, taskTotals } from "@/lib/marcas/summary";
+import type { MarcasBrand } from "@/lib/marcas/types";
+import { useAllBrandsContent } from "../content/use-all-brands-content";
+import { useMarcasTasks } from "../use-marcas-tasks";
+import { useInstagramPublished } from "./use-instagram-published";
+
+const PAST_DAYS = 6;
+const NEXT_DAYS = 7;
+const DUE_SOON_SHOWN = 8;
+
+export interface BrandIgRow {
+  brand: MarcasBrand;
+  linked: boolean;
+  outcome: SyncOutcome | undefined;
+  tallies: DayTally[];
+}
+
+/**
+ * Everything the summary shows, from three sources the other Marcas pages
+ * already use: the content plans (sheet + Drive), what Instagram shows
+ * (GET /api/marcas/instagram) and the tasks. Days follow Argentina's
+ * calendar, whatever the viewer's timezone.
+ */
+export function useMarcasSummary(brands: MarcasBrand[]) {
+  const [today] = useState(() => argentinaDate(new Date()));
+  const past = useMemo(() => ({ from: shiftDate(today, -PAST_DAYS), to: today }), [today]);
+  const span = useMemo(() => ({ from: past.from, to: shiftDate(today, NEXT_DAYS) }), [past, today]);
+  const days = useMemo(() => Array.from({ length: PAST_DAYS + 1 }, (_, i) => shiftDate(past.from, i)), [past]);
+
+  const content = useAllBrandsContent(brands, span);
+  const instagram = useInstagramPublished(past);
+  const { tasks } = useMarcasTasks();
+
+  const igRows = useMemo<BrandIgRow[]>(() => {
+    const ig = instagram.data;
+    const byBrand = new Map<string, ContentPiece[]>();
+    for (const { brandId, piece } of content.pieces ?? []) byBrand.set(brandId, [...(byBrand.get(brandId) ?? []), piece]);
+    return brands
+      .filter((b) => b.sheet_url || b.drive_url)
+      .map((brand) => {
+        const state = ig?.brands[brand.id];
+        const linked = state?.outcome === "ok";
+        const items = linked ? (ig?.items ?? []).filter((i) => i.brand_id === brand.id) : [];
+        const tallies = tallyDays(days, byBrand.get(brand.id) ?? [], items, {
+          today,
+          firstSyncAt: linked ? (state?.firstSyncAt ?? null) : null,
+        });
+        return { brand, linked, outcome: state?.outcome, tallies };
+      });
+  }, [brands, instagram.data, content.pieces, days, today]);
+
+  const yesterday = useMemo(() => {
+    const date = shiftDate(today, -1);
+    let met = 0;
+    let total = 0;
+    for (const row of igRows) {
+      const day = row.linked ? row.tallies.find((x) => x.date === date) : undefined;
+      if (!day) continue;
+      const score = dayScore(day);
+      met += score.met;
+      total += score.total;
+    }
+    return { met, total };
+  }, [igRows, today]);
+
+  const pieces = content.pieces;
+  const todayPieces = useMemo(() => (pieces ?? []).filter((bp) => bp.piece.date === today), [pieces, today]);
+  const missing = useMemo(
+    () =>
+      (pieces ?? []).filter(
+        (bp) => bp.piece.date !== null && bp.piece.date > today && contentBucket(bp.piece.status) === "missing",
+      ),
+    [pieces, today],
+  );
+
+  return {
+    today,
+    days,
+    content,
+    instagram,
+    igRows,
+    yesterday,
+    todayPieces,
+    manualToday: todayPieces.filter((bp) => bp.piece.media.some((m) => m.manual)).length,
+    missing,
+    tasks,
+    taskTotals: tasks ? taskTotals(tasks) : null,
+    dueSoon: tasks ? dueSoon(tasks).slice(0, DUE_SOON_SHOWN) : [],
+    reload: () => {
+      content.reload();
+      instagram.reload();
+    },
+  };
+}

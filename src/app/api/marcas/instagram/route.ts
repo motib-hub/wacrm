@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { metaConfigured } from '@/lib/marcas/instagram/graph'
 import { syncBrands, type SyncOutcome } from '@/lib/marcas/instagram/sync'
 import type { PublishedItem } from '@/lib/marcas/instagram/tally'
+import type { InstagramResponse } from '@/lib/marcas/instagram/types'
 
 // Fork-only (Marcas · Resumen): what each brand the caller can see
 // published on Instagram between two Argentine dates.
@@ -14,19 +15,6 @@ import type { PublishedItem } from '@/lib/marcas/instagram/tally'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const MAX_WINDOW_DAYS = 62
-
-export interface InstagramBrandState {
-  username: string | null
-  outcome: SyncOutcome
-  firstSyncAt: string | null
-  lastSyncAt: string | null
-}
-
-export interface InstagramResponse {
-  configured: boolean
-  brands: Record<string, InstagramBrandState>
-  items: PublishedItem[]
-}
 
 export async function GET(request: Request) {
   const url = new URL(request.url)
@@ -77,7 +65,7 @@ export async function GET(request: Request) {
     brands: Object.fromEntries(
       (brands ?? []).map((b) => {
         const s = syncByBrand.get(b.id)
-        const outcome: SyncOutcome = outcomes[b.id] ?? (b.instagram_username ? 'error' : 'not_linked')
+        const outcome: SyncOutcome = outcomes[b.id] ?? (configured && b.instagram_username ? 'error' : 'not_linked')
         return [b.id, { username: b.instagram_username, outcome, firstSyncAt: s?.first_at ?? null, lastSyncAt: s?.last_at ?? null }]
       }),
     ),

@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isStoryPiece } from "@/lib/marcas/content/buckets";
 import type { ContentPiece } from "@/lib/marcas/content/types";
 import { ContentCard } from "./content-card";
 import { ContentDialog } from "./content-dialog";
@@ -16,7 +17,6 @@ const FILTERS = ["all", "feed", "stories"] as const;
 type Filter = (typeof FILTERS)[number];
 
 /** Stories-only pieces (a sheet row ticked HISTORIA, or a day of Drive stories). */
-const isStory = (p: ContentPiece) => p.formats.includes("historia") && p.formats.every((f) => f === "historia");
 
 /** The read-only Google robot sheets must be shared with (Viewer). */
 const ROBOT_EMAIL = "crm-lector@motib-crm.iam.gserviceaccount.com";
@@ -39,7 +39,7 @@ export function ContentBoard({ brandId }: { brandId: string }) {
 
   const groups = useMemo(() => {
     const pieces = (data?.pieces ?? []).filter((p) =>
-      filter === "all" ? true : filter === "stories" ? isStory(p) : !isStory(p),
+      filter === "all" ? true : filter === "stories" ? isStoryPiece(p) : !isStoryPiece(p),
     );
     return groupByDay(pieces);
   }, [data, filter]);
@@ -125,19 +125,19 @@ export function ContentBoard({ brandId }: { brandId: string }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {date ? dayLabel(date, locale) : t("undated")}
               </h3>
-              {pieces.some((p) => !isStory(p)) ? (
+              {pieces.some((p) => !isStoryPiece(p)) ? (
                 <div className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {pieces.filter((p) => !isStory(p)).map((p) => (
+                  {pieces.filter((p) => !isStoryPiece(p)).map((p) => (
                     <ContentCard key={p.key} piece={p} onOpen={() => setOpen(p)} />
                   ))}
                 </div>
               ) : null}
-              {pieces.some(isStory) ? (
+              {pieces.some(isStoryPiece) ? (
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-medium text-muted-foreground">{t("storiesTitle")}</span>
                   {/* Stories scroll sideways like on the phone: narrow 9:16 tiles. */}
                   <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1">
-                    {pieces.filter(isStory).map((p) => (
+                    {pieces.filter(isStoryPiece).map((p) => (
                       <div key={p.key} className="w-28 shrink-0 snap-start sm:w-32">
                         <ContentCard piece={p} variant="story" onOpen={() => setOpen(p)} />
                       </div>

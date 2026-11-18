@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ContentPiece, PieceMedia } from '../content/types';
-import { argentinaDate, plannedCounts, shiftDate, tallyDays, verdictFor, type PublishedItem } from './tally';
+import { argentinaDate, dayScore, plannedCounts, shiftDate, tallyDays, verdictFor, type PublishedItem } from './tally';
 
 const media = (id: string): PieceMedia => ({ id, name: id, kind: 'image', thumbnail: null, viewUrl: '', manual: false });
 const piece = (o: Partial<ContentPiece>): ContentPiece => ({
@@ -78,5 +78,13 @@ describe('tallyDays', () => {
       published: { feed: 1, stories: 2 },
       verdict: 'done',
     });
+  });
+});
+
+describe('dayScore', () => {
+  it('scores only what can be judged', () => {
+    const planned = { feed: 1, stories: 4 };
+    expect(dayScore({ planned, published: { feed: 1, stories: 6 }, storiesUnknown: false })).toEqual({ met: 5, total: 5 });
+    expect(dayScore({ planned, published: { feed: 0, stories: 2 }, storiesUnknown: true })).toEqual({ met: 0, total: 1 });
   });
 });
